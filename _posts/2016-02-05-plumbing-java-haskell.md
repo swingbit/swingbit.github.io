@@ -1,3 +1,8 @@
+---
+layout: post
+title: Plumbing fun with Java and Haskell
+---
+
 **Java** is far from perfect, but it is at the very least a safe choice when it comes to be productive on medium/large projects. <img style="float:right; padding:1em" src="https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcSdz4JItBL_U88dmF37j0tcH73xa8dTMOW1mgBYMiYmQNVq_ccR">
 So yes. I do use Java in most cases, especially at work. But I still like to have the option to use the right tool for the right job. 
 
