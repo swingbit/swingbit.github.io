@@ -1,6 +1,7 @@
 ---
 layout: post
 title: Plumbing fun with Java and Haskell
+date: 2016-02-05
 ---
 
 **Java** is far from perfect, but it is at the very least a safe choice when it comes to be productive on medium/large projects. <img style="float:right; padding:1em" src="https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcSdz4JItBL_U88dmF37j0tcH73xa8dTMOW1mgBYMiYmQNVq_ccR">
