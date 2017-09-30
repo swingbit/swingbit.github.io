@@ -6,4 +6,4 @@ tags: swing facebook
 ---
 
 <p/>
-<iframe src="https://www.facebook.com/plugins/post.php?href=https%3A%2F%2Fwww.facebook.com%2Fnotes%2Froberto-cornacchia%2Fhow-many-lindy-hoppers-are-there-in-the-world%2F10153028950965933%2F&width=600" width="600" height="465" style="border:none;overflow:hidden" scrolling="no" frameborder="0" allowTransparency="true"></iframe>
+<iframe src="https://www.facebook.com/plugins/post.php?href=https%3A%2F%2Fwww.facebook.com%2Fnotes%2Froberto-cornacchia%2Fhow-many-lindy-hoppers-are-there-in-the-world%2F10153028950965933%2F" style="border:none;overflow:hidden" scrolling="no" frameborder="0" allowTransparency="true"></iframe>
