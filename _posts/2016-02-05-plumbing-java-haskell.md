@@ -5,7 +5,8 @@ date: 2016-02-05
 tags: haskell java
 ---
 
-**Java** is far from perfect, but it is at the very least a safe choice when it comes to be productive on medium/large projects. <img width="35%" style="float:right; padding:1em" src="https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcSdz4JItBL_U88dmF37j0tcH73xa8dTMOW1mgBYMiYmQNVq_ccR">
+<img width="35%" style="float:right; padding:1em" src="https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcSdz4JItBL_U88dmF37j0tcH73xa8dTMOW1mgBYMiYmQNVq_ccR">
+**Java** is far from perfect, but it is at the very least a safe choice when it comes to be productive on medium/large projects.
 So yes. I do use Java in most cases, especially at work. But I still like to have the option to use the right tool for the right job. 
 
 One language I particularly like is **Haskell**. I wish I could say I'm a good Haskell developer, but the truth is that I still shiver when I read "[A monad is just a monoid in the category of endofunctors, what's the problem?](http://stackoverflow.com/questions/3870088/a-monad-is-just-a-monoid-in-the-category-of-endofunctors-whats-the-problem)". In spite of the pain that my code could inflict to true Haskell developers, this is my first choice to implement tree rewriting patterns in DSL transformations, for example in database query optimisation.
