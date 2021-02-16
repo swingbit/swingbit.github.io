@@ -139,9 +139,7 @@ Sometimes this is actually the case (e.g. “SWING DANCE　▎松菸木板地”
 # So, what is the total?
 
 The number of distinct user IDs found this way on 8 October 2015 is.....
-<p style="text-align: center; font-size: x-large">
-> 353,871
-</p>
+<p style="text-align: center; font-size: x-large">353,871</p>
 
 Remember that the goal of this approach was to estimate a lower bound to the real number. 
 My wild guess is that the real number is easily closer to twice as much (whatever the number above may be updated to), because:
