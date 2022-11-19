@@ -1,12 +1,13 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
+* Computes the best move from the given board
 * @param {string} fromFEN
 * @returns {string}
 */
 export function best_move(fromFEN: string): string;
 /**
-* checks that the move is legal e returns a new FEN for the opponent
+* Checks that the move is legal e returns a new FEN for the opponent
 * @param {string} fromFEN
 * @param {string} fromPos
 * @param {string} toPos

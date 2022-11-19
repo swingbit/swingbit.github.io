@@ -111,6 +111,7 @@ function getInt32Memory0() {
     return cachedInt32Memory0;
 }
 /**
+* Computes the best move from the given board
 * @param {string} fromFEN
 * @returns {string}
 */
@@ -130,7 +131,7 @@ export function best_move(fromFEN) {
 }
 
 /**
-* checks that the move is legal e returns a new FEN for the opponent
+* Checks that the move is legal e returns a new FEN for the opponent
 * @param {string} fromFEN
 * @param {string} fromPos
 * @param {string} toPos
