@@ -5,7 +5,7 @@
 * @param {string} fromFEN
 * @returns {string}
 */
-export function best_move(fromFEN: string): string;
+export function find_best_move(fromFEN: string): string;
 /**
 * Checks that the move is legal e returns a new FEN for the opponent
 * @param {string} fromFEN
@@ -14,13 +14,20 @@ export function best_move(fromFEN: string): string;
 * @returns {string}
 */
 export function make_move(fromFEN: string, fromPos: string, toPos: string): string;
+/**
+* Reports whether and in what way the game ended
+* @param {string} fromFEN
+* @returns {string}
+*/
+export function check_end_game(fromFEN: string): string;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly best_move: (a: number, b: number, c: number) => void;
+  readonly find_best_move: (a: number, b: number, c: number) => void;
   readonly make_move: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+  readonly check_end_game: (a: number, b: number, c: number) => void;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
   readonly __wbindgen_malloc: (a: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number) => number;
