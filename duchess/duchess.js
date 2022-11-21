@@ -1,33 +1,32 @@
 import { make_move, find_best_move, check_end_game } from './pkg/duchesslib.js';
 
 var board = null
-var $last_human = $('#last_human')
-var $last_duchess = $('#last_duchess')
+var $last_white = $('#last_white')
+var $last_black = $('#last_black')
 
 var last_fen = null
-var last_human_fen = null
-var last_duchess_fen = null
 
 $('#new_game_as_white').on('click', function () {
   board.orientation('white')
   board.position('start')
-  $last_duchess.html(null)
-  $last_human.html(null)
+  $last_white.html(null)
+  $last_black.html(null)
   last_fen = board.fen() + ' w KQkq - 0 1'
-  last_human_fen = last_fen
-  last_duchess_fen = last_fen
 })
 
 $('#new_game_as_black').on('click', function () {
   board.orientation('black')
   board.position('start')
-  $last_duchess.html(null)
-  $last_human.html(null)
+  $last_white.html(null)
+  $last_black.html(null)
   last_fen = board.fen() + ' w KQkq - 0 1'
-  last_human_fen = last_fen
-  last_duchess_fen = last_fen
 
-  window.setTimeout(duchessMove, 1000, last_human_fen)
+  window.setTimeout(duchessMove, 1000, last_fen)
+})
+
+$('#suggest_move').on('click', function () {
+  duchessMove(last_fen)
+  window.setTimeout(duchessMove, 500, last_fen)
 })
 
 function panic() {
@@ -59,28 +58,37 @@ function handle_end_game(fen) {
   }
 }
 
+function record_last_fen(fen) {
+  if (fen.search(/ w /) != -1) {
+    last_fen = fen
+    $last_black.html(last_fen)
+  } else if (fen.search(/ b /) != -1) {
+    last_fen = fen
+    $last_white.html(last_fen)
+  } else {
+    panic()
+  }
+}
+
 function duchessMove(fromFEN) {
   var reply = find_best_move(fromFEN)
   check_panic_reply(reply)
-  last_fen = last_duchess_fen = reply
-  board.position(last_duchess_fen)
-  $last_duchess.html(last_duchess_fen)
+  record_last_fen(reply)
+  board.position(last_fen)
 }
 
 function onDrop (source, target, piece, newPos, oldPos, orientation) {
   // make  move returns a new FEN, or 'illegal'
-  var reply = make_move(last_duchess_fen, source, target)
-  check_panic_reply(reply)
-  if(reply == 'illegal') {
+  var reply = make_move(last_fen, source, target)
+  if(reply.search(/illegal/) != -1) {
     return 'snapback'
   }
-  last_fen = last_human_fen = reply
+  record_last_fen(reply)
   // Re-draw the board according to the received FEN
   // because there might have been a promotion or a castling
   // Do it with a delay, so that the standard redraw after the drop is overwritten
-  window.setTimeout(board.position, 100, last_human_fen)
-  $last_human.html(last_human_fen)
-  window.setTimeout(duchessMove, 100, last_human_fen)
+  window.setTimeout(board.position, 100, last_fen)
+  window.setTimeout(duchessMove, 100, last_fen)
 }
 
 function onMoveEnd(oldPos, newPos) {
@@ -97,6 +105,4 @@ export function duchess () {
   }
   board = Chessboard('board1', config)
   last_fen = board.fen() + ' w KQkq - 0 1'
-  last_human_fen = last_fen
-  last_duchess_fen = last_fen
 }
