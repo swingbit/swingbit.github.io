@@ -8,14 +8,16 @@
     <script src="js/chessboard-1.0.0.min.js"></script>
   </head>
   <body>
-    <div id="board1" style="width: 400px"></div>
-    <hr>
-    <div><label>Last Player: </label><span id="last_human"></span></div>
-    <hr>
-    <div><label>Last Duchess: </label><span id="last_duchess"></span></div>
-    <hr>
-    <button id="new_game_as_white">New game as White</button>
-    <button id="new_game_as_black">New game as Black</button>
+    <div style="width: 95%; height: 100%;">
+      <div id="board1"></div>
+      <hr>
+      <div><label>Last Player: </label><span id="last_human"></span></div>
+      <hr>
+      <div><label>Last Duchess: </label><span id="last_duchess"></span></div>
+      <hr>
+      <button id="new_game_as_white">New game as White</button>
+      <button id="new_game_as_black">New game as Black</button>
+    </div>
     <script type="module">
       import init from './pkg/duchesslib.js';
       import { duchess } from './duchess.js'
