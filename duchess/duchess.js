@@ -1,5 +1,6 @@
 import { make_move, find_best_move, check_end_game } from './pkg/duchesslib.js';
 
+<<<<<<< HEAD
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
 var board = null
@@ -35,6 +36,35 @@ $('#undo_move').on('click', function () {
     record_last_fen(fen2)
     board.position(last_fen)
   }
+=======
+var board = null
+var $last_white = $('#last_white')
+var $last_black = $('#last_black')
+
+var last_fen = null
+
+$('#new_game_as_white').on('click', function () {
+  board.orientation('white')
+  board.position('start')
+  $last_white.html(null)
+  $last_black.html(null)
+  last_fen = board.fen() + ' w KQkq - 0 1'
+})
+
+$('#new_game_as_black').on('click', function () {
+  board.orientation('black')
+  board.position('start')
+  $last_white.html(null)
+  $last_black.html(null)
+  last_fen = board.fen() + ' w KQkq - 0 1'
+
+  window.setTimeout(duchessMove, 1000, last_fen)
+})
+
+$('#suggest_move').on('click', function () {
+  duchessMove(last_fen)
+  window.setTimeout(duchessMove, 500, last_fen)
+>>>>>>> c446c060175010260b07b967dcd4b77377004727
 })
 
 function panic() {
@@ -76,11 +106,19 @@ function handle_end_game(fen) {
 }
 
 function record_last_fen(fen) {
+<<<<<<< HEAD
   last_fen = fen
   fen_stack.push(fen)
   if (fen.search(/ w /) != -1) {
     $last_black.html(last_fen)
   } else if (fen.search(/ b /) != -1) {
+=======
+  if (fen.search(/ w /) != -1) {
+    last_fen = fen
+    $last_black.html(last_fen)
+  } else if (fen.search(/ b /) != -1) {
+    last_fen = fen
+>>>>>>> c446c060175010260b07b967dcd4b77377004727
     $last_white.html(last_fen)
   } else {
     panic()
@@ -103,7 +141,11 @@ function onDrop (source, target, piece, newPos, oldPos, orientation) {
   record_last_fen(reply)
   // Re-draw the board according to the received FEN
   // because there might have been a promotion or a castling
+<<<<<<< HEAD
   // Do it with a delay, after the standard redraw of the drop
+=======
+  // Do it with a delay, so that the standard redraw after the drop is overwritten
+>>>>>>> c446c060175010260b07b967dcd4b77377004727
   window.setTimeout(board.position, 100, last_fen)
   window.setTimeout(duchessMove, 100, last_fen)
 }
@@ -121,4 +163,8 @@ export function duchess () {
     onMoveEnd: onMoveEnd,
   }
   board = Chessboard('board1', config)
+<<<<<<< HEAD
+=======
+  last_fen = board.fen() + ' w KQkq - 0 1'
+>>>>>>> c446c060175010260b07b967dcd4b77377004727
 }
