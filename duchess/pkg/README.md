@@ -10,8 +10,8 @@ Because it's fun and because I needed an excuse to get accustomed to Rust.
   - (done) all standard moves, castling, promotion, check, checkmate, draw
   - (missing) en passant
 - UI:
-  - (partial) [UCI](https://en.wikipedia.org/wiki/Universal_Chess_Interface) interface (use with e.g. [Arena Chess GUI](http://www.playwitharena.de/))
-  - integration with [chessboardjs](https://chessboardjs.com) via Wasm compilation
+  - (partial) [UCI](https://en.wikipedia.org/wiki/Universal_Chess_Interface) interface (branch `main`. Use with e.g. [Arena Chess GUI](http://www.playwitharena.de/))
+  - integration with [chessboardjs](https://chessboardjs.com) via Wasm compilation (branch `wasm`)
 - Evaluations and heuristics:
   - (done) simple board value based on pieces
   - (done) [simplified positional evaluation](https://www.chessprogramming.org/Simplified_Evaluation_Function)
