@@ -2,6 +2,8 @@
 A simple chess engine. 
 Because it's fun and because I needed an excuse to get accustomed to Rust.
 
+The `wasm` branch is playable online at https://swingbit.github.io/duchess/
+
 ## Status
 - Move generation:
   - (done) all standard moves, castling, promotion, check, checkmate, draw
@@ -25,4 +27,8 @@ Because it's fun and because I needed an excuse to get accustomed to Rust.
   - (partial) move ordering
   - (missing) more efficient board representations
 
-
+## How to run Duchess on a browser
+- Make sure `wasm-pack` [is installed](https://rustwasm.github.io/wasm-pack/installer/)
+- Run `./build.sh`
+- Run `./server.py`
+- Open a broser to: http://localhost:8000/duchess.html
