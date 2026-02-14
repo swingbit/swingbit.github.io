@@ -285,6 +285,29 @@ footer {
   text-align: center;
 }
 
+
+// Table styles
+table {
+  width: 100%;
+  max-width: 100%;
+  margin: 15px 0;
+  border-collapse: collapse;
+  font-size: 16px;
+}
+
+th, td {
+  padding: 10px;
+  line-height: 1.5;
+  vertical-align: top;
+  border-bottom: 1px solid $lightGray;
+  text-align: left;
+}
+
+th {
+  font-weight: bold;
+  border-bottom: 2px solid $gray;
+}
+
 // Settled on moving the import of syntax highlighting to the bottom of the CSS
 // ... Otherwise it really bloats up the top of the CSS file and makes it difficult to find the start
 @import "highlights";
