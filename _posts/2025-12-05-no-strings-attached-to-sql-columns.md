@@ -5,9 +5,9 @@ date: 2025-12-05
 tags: sql database optimization monetdb
 ---
 
-Strings are a difficult data type in database management systems. They come with variable sizes, considerable memory footprints, and incur high I/O costs. To mitigate these performance penalties, String Dictionary Encoding (DE) is frequently employed.
+Strings are a difficult data type in database management systems. They come with variable sizes, considerable memory footprints, and incur high I/O costs. To mitigate these performance penalties, **String Dictionary Encoding (DE)** is frequently employed.
 
-In simple terms, **Dictionary Encoding** replaces long, repetitive strings with compact integer IDs, storing the unique strings just once in a separate lookup table.
+In simple terms, Dictionary Encoding replaces long, repetitive strings with compact integer IDs, storing the unique strings just once in a separate lookup table.
  
 In this post, I will discuss the challenges of string management in modern databases and present a PoC developed for **MonetDB** that aims to solve these issues transparently.
  
@@ -402,5 +402,6 @@ Several challenges and improvement directions remain, such as:
 - Expansion of the dictionary to centrally store common string statistics, to support all of the above
 
 Will we soon be able to freely use strings in our favourite SQL DBMS without paying the price?
-I explicitly suggest keeping an eye on future MonetDB releases
+
+I suggest keeping an eye on future MonetDB releases.
 
