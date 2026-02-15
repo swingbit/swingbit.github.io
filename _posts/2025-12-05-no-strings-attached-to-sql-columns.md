@@ -100,7 +100,7 @@ While the MediaWiki migrations were successful, they required **years** of engin
 
 When you implement Dictionary Encoding yourself, you inherit a logical mess:
 
-*   **Ingestion Logic (`CommentStore.php`)**: You can't just `INSERT` data anymore. MediaWiki developers had to write a complex `CommentStore` class to handle the "Lookup-or-Insert" dance for every single edit:
+*   **Ingestion Logic**: You can't just `INSERT` data anymore. MediaWiki developers had to write a complex `CommentStore` class to handle the "Lookup-or-Insert" dance for every single edit:
     1.  **Hash**: Calculate a CRC32 hash of the new string.
     2.  **Select**: Query `comment` to see if `(hash, text)` already exists.
     3.  **Cache Hit**: If found, return the ID.
@@ -109,7 +109,7 @@ When you implement Dictionary Encoding yourself, you inherit a logical mess:
 
 *   **Migration Pain**: They had to write "Write-Both" logic (writing to both old and new columns) for years to ensure backward compatibility and safety during the transition.
 
-*   **Query Complexity**: Simple reports now require joins. To see what User X did, you must join `revision` with `comment`.
+*   **Query Complexity**: Simple reports now require joins. To find the most common edit summaries per user, you must join `revision` with `comment`.
 
     ```sql
     SELECT a.actor_name, c.comment_text, COUNT(*) AS count
@@ -134,7 +134,7 @@ When you implement Dictionary Encoding yourself, you inherit a logical mess:
 
     The `actor` table is kept because users are distinct entities (Logical Normalisation), but the `comment` table is gone because edit summaries are just attributes (Physical Optimisation). If only the DBMS could help us achieve this...
 
-## Dear DBMS, we want strings, and we want them fast
+## Dear DBMS, We Want Strings, and We Want Them Fast
 
 The core problem with the MediaWiki example is that **the DBMS forced the user to do the optimisation work**. Developers had to redesign their schema, write complex application logic, and manage data integrity manually, just to make strings efficient.
 
@@ -184,6 +184,10 @@ mel_atom ustr_init_atoms[] = {
 Crucially, it is not stored as a variable-size type, but as a 64-bit integer ID.
 This ID points to a dictionary of strings that is global to the database.
 
+```c
+typedef uint64_t ustr;
+```
+
 ### The dictionary and its primitives
 I'm not covering the actual dictionary implementation here, but as you can imagine it boils down to a string vector with a hash table on top of it to speed up lookups.
 No matter how you implement it, two primitives are needed to interact with the dictionary:
@@ -215,14 +219,16 @@ bool ustrEq(const void *a, const void *b) {
   return *(ustr*)a == *(ustr*)b;
 }
 ```
-This is precisely the ultimate goal of this data type. Equal strings have equal IDs. Therefore, we never need to compare strings like the standard string data type does.
+This is precisely the ultimate goal of a global dictionary. Equal strings have equal IDs. Therefore, we never need to compare strings like the standard string data type does.
 
 ### First Byte Inlining (FBI)
 What about the `ustrCmp` function, used for comparing two strings based on the lexicographic order?
+This is used by operations like sorting, inequality filters, merge join implementation, etc.
+
 If our IDs were guaranteed to follow the same order as the strings they represent, we could just compare the IDs.
 But this is not the case. It's not a matter of implementation, but a matter of mathematics.
 
-It would seem that we cannot escape a full string comparison:
+It would seem that we cannot escape a full string comparison unless they are equal:
 
 ```c
 static int ustrCmp(const void *a, const void *b) {
@@ -297,9 +303,9 @@ The shortest inlined string is the empty string, which is encoded as `0x00000000
 
 The opposite, storing a short string as a `ustr`, is equally trivial.
 
-Note that the ID of inlined strings always have the highest byte set to 0.
+Note that the IDs of inlined strings always have the highest byte set to 0.
 In principle, this would leave the address space for the dictionary index almost untouched, with (2^56)-1 possible indices.
-In the PoC, for simplicity, we don't use the highest byte for the dictionary index, which leaves us with 2^48 usable indices (8 bits for FBI, 8 bits for SSI).
+In the PoC, for simplicity, I didn't use the entire highest byte for the dictionary index, which leaves us with 2^48 usable indices (8 bits for FBI, 8 bits for SSI).
 Still more than sufficient for any practical purpose.
 
 Short String Inlining is not a new idea, but one that fits very well with the `ustr` atom.
@@ -337,19 +343,19 @@ The savings in terms of storage space that are achieved using the `USTR` type ar
 
 Notice that even though the `tokens` dataset has much more duplication, `USTR` actually ends up using slightly **more** space than the standard `STRING` type (+2.3%).
 This happens because MonetDB performs some opportunistic de-duplication on standard strings, which in this case was effective enough to allow the use of **32-bit heap offsets** (4 bytes per row). `USTR` always uses **64-bit IDs** (8 bytes per row).
-Unfortunately, while standard strings save some space here, they lack the strict uniqueness guarantees required for the equality-optimization that makes `USTR` so fast. Furthermore, this advantage is temporary: as data grows, standard strings would eventually require 64-bit offsets, negating the saving. Finally, it is arguably more interesting to note that the full database from which these two datasets were extracted uses **47%** of the space compared to the same database using the standard `STRING` type.
+Unfortunately, while standard strings save some space here, they lack the strict uniqueness guarantees required for the equality-optimization that makes `USTR` so fast. Furthermore, this advantage is temporary: as data grows, standard strings would eventually require 64-bit offsets, negating the saving. Finally, it is arguably more interesting to note that the full database from which these two datasets were extracted yields a **53% reduction** in storage space compared to the same database using the standard `STRING` type.
 
 ### Benchmarks
 
-Benchmarks were run on a i9-14900T CPU with 64 GB of RAM, using MonetDB 11.55, single-core.
+Benchmarks were run on a i9-14900T CPU with 64 GB of RAM, using MonetDB 11.55.
 
 #### Tasks
 
-- `COPY INTO`: bulk load the dataset from a CSV file into a table.
+- `COPY INTO`: bulk load the dataset from a CSV file into a table
 - `COUNT DISTINCT`: count the number of distinct strings in the table
 - `ORDER BY`: order the rows of the table by the string column
 - `JOIN`: join the table on string, against a 1K sample of itself
-- `JOIN (hot)`: the same join a second time (hash tables should be available already)
+- `JOIN (hot)`: the same join a second time (hash tables should be available)
 
 #### Results
 
@@ -361,7 +367,15 @@ Benchmarks were run on a i9-14900T CPU with 64 GB of RAM, using MonetDB 11.55, s
 | `JOIN`     | 7.73s | 0.36s | 57.52s | 46.77s |
 | `JOIN (hot)` | 0.041s | 0.039s | 39.04s | 38.78s |
 
-The join improvements are admittedly less dramatic than expected. This is primarily due to the exceptional optimisation of string joins in MonetDB. While `USTR` provides a faster integer-based join (as evidenced by the hash table creation speed), the standard string implementation is highly competitive.
+Although the two datasets show different behaviours due to their different distributions, the `USTR` type is always faster.
+
+The bulk load improvement can be attributed to the lower amount of I/O required to store the strings.
+
+The massive improvement in `COUNT DISTINCT` is due to the grouping operation completely performed on integer values, with no string ever touched.
+
+The `ORDER BY` improvements are mainly due to First Byte Inlining, which allows the comparison to be performed on integer values, with no string ever touched.
+
+The `JOIN` improvements are admittedly less dramatic than expected. This is primarily due to the exceptional optimisation of string joins in MonetDB. While `USTR` provides a faster integer-based join (as evidenced by the hash table creation speed), the standard string implementation is highly competitive.
 
 ## Concurrency
 
@@ -369,12 +383,12 @@ A global dictionary creates a single point of contention, which can be a bottlen
 
 I will not go into much detail, but the extent of my effort in this direction boils down to the following few points.
 
-The dictionary can be accessed only through the two primitives seen above, which simplifies lock management.
+The dictionary can be accessed only through the two primitives seen above, which simplifies dictionary lock management.
 It is imperative to keep locks for as short as possible, in particular for the write lock.
 It pays off to invest time in an **optimistic lookup**, with either no lock at all, or with a read lock.
 Only when the lookup fails, a write lock is necessary.
 
-It helps to keep a small **staging area** where new entries are collected, and periodically flushed to the main dictionary in a single batch.
+It helps to keep a small **staging area** where new entries are collected, and periodically flushed to the main dictionary in a single batch. This optimised I/O and minimises lock contention.
 
 **Dictionary sharding** greatly reduces contention. Given a set of `N` shards, each string goes to a shard based on `hash(string) % N`.
 This way, the chances of concurrent access to the same shard are reduced by a factor of `N`.
