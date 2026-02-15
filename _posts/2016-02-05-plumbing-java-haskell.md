@@ -21,7 +21,7 @@ Perhaps this was very obvious to the rest of the world, but it took me a couple 
 We are working on a Java project, and one of its classes looks like this:
 
 **`com/example/FunWithStrings.java`**
-``` java
+```java
 package com.example;
 
 public class FunWithStrings {
@@ -46,7 +46,7 @@ Pretty impressive project, I know.
 
 But what about that `/* TODO */` in the `sort` method? OK, use your imagination here. Pretend that no implementation is available for the sort problem, and let's use Haskell for the job:
 
-``` haskell
+```haskell
 qsort :: (Ord a) => [a] -> [a]
 qsort []     = []
 qsort (x:xs) = qsort ys ++ x : qsort zs where (ys, zs) = partition (< x) xs
@@ -55,7 +55,7 @@ qsort (x:xs) = qsort ys ++ x : qsort zs where (ys, zs) = partition (< x) xs
 Yes, that's all the code you need (actually, the function signature in the first line can be inferred automatically by the compiler).
 
 So this is what we would like to do from Java:
-``` java
+```java
   /* Returns all the string's characters, but in alphabetical order */
   public String sort(String s) {
     return StringUtils.sort(s); /* this calls the Haskell implementation */
@@ -104,7 +104,7 @@ The `linux-x86_64` folder is obviously architecture-dependent. This folder will 
 As we said, Haskell can be called from C/C++ using FFI. Let's see [how to implement the FFI interface](https://wiki.haskell.org/Foreign_Function_Interface):
 
 **`StringUtilsFFI.hs`**
-``` haskell
+```haskell
 {-# LANGUAGE ForeignFunctionInterface #-}
 
 module StringUtilsFFI where
@@ -124,7 +124,7 @@ Notice the `{-# LANGUAGE ForeignFunctionInterface #-}` pragma, which tells the g
 The actual quick sort is implemented here:
 
 **`StringUtils.hs`**
-``` haskell
+```haskell
 module StringUtils where
 
 import Data.List
@@ -137,7 +137,7 @@ qsort (x:xs) = qsort ys ++ x : qsort zs where (ys, zs) = partition (< x) xs
 
 Compilation:
 
-``` bash
+```bash
 $ ghcVersion=`ghc --version | perl -pe 's/.* ([\d.]+)/$1/'`
 $ ghc --make -isrc -outputdir build -dynamic -shared -fPIC
   -lHSrts-ghc${ghcVersion} src/StringUtilsFFI.hs -o build/com/example/linux-x86_64/libStringUtils.so 
@@ -147,7 +147,7 @@ Unfortunately when linking against the shared version of libHSrts, the ghc run-t
 This produces two files, `build/com/example/linux-x86_64/libStringUtils.so`, which is the native library with our Haskell implementation, and `build/StringUtilsFFI_stub.h`, which is the generated C interface file:
 
 **`build/StringUtilsFFI_stub.h`**
-``` c
+```c
 #include "HsFFI.h"
 #ifdef __cplusplus
 extern "C" {
@@ -160,12 +160,12 @@ extern HsPtr hs_sort(HsPtr a1);
 
 There is an issue here. It seems [the GHC compiler is being a bit lazy](https://ghc.haskell.org/trac/ghc/ticket/10505): `HsPtr` is defined in `HsFFI.h` as `void *`. However, the string argument `a1`, which is our string to be sorted, is expected to be of type `const char *`. 
 Until the problem is fixed, we need to patch this file manually:
-``` bash
+```bash
 $ perl -p -i -e 's/HsPtr a/const char * a/g' build/StringUtilsFFI_stub.h
 ```
 and obtain:
 **`build/StringUtilsFFI_stub.h`**
-``` c
+```c
 #include "HsFFI.h"
 #ifdef __cplusplus
 extern "C" {
@@ -181,7 +181,7 @@ extern HsPtr hs_sort(const char * a1);
 Let's create a Java class that implements the wrapping towards the native library:
 
 **`java/com/example/StringUtils.java`**
-``` java 
+```java 
 package com.example;
     
 import org.bytedeco.javacpp.*;
@@ -237,14 +237,14 @@ Notice that `Loader.load()` is executed within a `static {}` scope. This means i
 
 We will not compile this class directly, but a copy of it. That's because later on we will extend this step with compile-time modification to this class:
 
-``` bash
+```bash
 $ cp java/com/example/StringUtils.java build/com/example
 $ javac -cp javacpp.jar  build/com/example/StringUtils.java
 ```
 This creates `build/com/example/StringUtils.class`, which will be the entrypoint of our jar.
 
 # 3. Generating and compiling the JNI wrapping code
-``` bash
+```bash
 $ java -jar javacpp.jar -classpath build 
   -d build/com/example/linux-x86_64
   -Dplatform.compiler=ghc -Dplatform.includepath="build" 
@@ -259,7 +259,7 @@ Where will `libjniStringUtils.so` find `libStringUtils.so`? In the same location
 
 # 4. Archive the result into a jar
 
-``` bash
+```bash
 $ cd build
 $ jar cf string-utils.jar 
       com/example/StringUtils.class 
@@ -268,7 +268,7 @@ $ jar cf string-utils.jar
 
 Let's check the content:
 
-``` bash
+```bash
 $ jar tf string-utils.jar
 META-INF/
 META-INF/MANIFEST.MF
@@ -284,7 +284,7 @@ Yes it is, but in most cases, it isn't.
 
 ## Haskell RTS, is it installed everywhere?
 Remember that we have compiled these libraries against the shared version of the Haskell RTS. We can see this by useing `ldd`:
-``` bash
+```bash
 $ ldd -d build/com/example/linux-x86_64/libStringUtils.so
         linux-vdso.so.1 (0x00007ffe4dfc0000)
         libHSrts-ghc7.8.4.so => /usr/lib64/ghc-7.8.4/rts-1.0/libHSrts-ghc7.8.4.so (0x00007f43d0d97000)
@@ -305,7 +305,7 @@ $ ldd -d build/com/example/linux-x86_64/libStringUtils.so
 If we take this jar and use it in a different system where the Haskell RTS is not installed, those `libHS*.so` (and all the Haskell libraries that might be used in less trivial code than what we used) won't be found, while it is relatively safe to assume all the other libs are available. 
 
 Well, lets pack them all in the jar. It's sufficient to run this *before* making the jar archive:
-``` bash
+```bash
 ldd -d build/com/example/linux-x86_64/libStringUtils.so 
     | grep libHS | perl -pe 's/.*=> ([^(]+) \(.*/$1/' | sort -u 
     | xargs cp -t build/com/example/linux-x86_64
@@ -317,7 +317,7 @@ Excellent, the jar is now self-contained. Are we there yet? Almost, but not quit
 That's because `libStringUtils.so` was compiled at step 1 without the `-wl,rpath,'$ORIGIN'` option. So our library is still looking for the Haskell RTS in their original locations rather than in the "current" folder. 
 
 Let's change it into:
-``` bash
+```bash
 $ ghcVersion=`ghc --version | perl -pe 's/.* ([\d.]+)/$1/'`
 $ ghc --make -isrc -outputdir build -dynamic -shared -fPIC
   -lHSrts-ghc${ghcVersion} src/StringUtilsFFI.hs -o build/com/example/linux-x86_64/libStringUtils.so
@@ -329,7 +329,7 @@ Indeed, one more step is needed. When `Loader.load()` is called, it unpacks the 
 Our Java JNI wrapping class contained a javacpp annotation:
 
 **`build/com/example/StringUtils.java`**
-``` java 
+```java 
 package com.example;
     
 import org.bytedeco.javacpp.*;
@@ -343,7 +343,7 @@ public class StringUtils  {
 We need to extend this annotation with a list of libraries to load (and thus extract):
 
 **`build/com/example/StringUtils.java`**
-``` java 
+```java 
 package com.example;
     
 import org.bytedeco.javacpp.*;
@@ -358,7 +358,7 @@ public class StringUtils  {
 
 Doing this manually isn't really an option, because you might be using 15-20 libraries in a non-trivial Haskell program. So we need again to automatise this, changing the compilation part of step 2 into:
 
-``` bash
+```bash
 $ cp java/com/example/StringUtils.java build/com/example
 $ PRELOADS=`ldd -d build/com/example/linux-x86_64/libStringUtils.so | 
                     grep libHS | perl -pe 's/.*=> ([^(]+) \(.*/$1/' |
@@ -373,7 +373,7 @@ Yes, this is it, let's put it all together.
 # The complete script
 
 We can put everything together into a bash script at the root of our initial structure. In my production code I embed all this in a [Gradle](http://www.gradle.org) script.
-``` bash
+```bash
 # init
 rm -rf build
 mkdir -p build/com/example/linux-x86_64
@@ -397,7 +397,7 @@ cd build ; jar cf string-utils.jar com/example/StringUtils.class com/example/lin
 ```
 ## Does it work?
 
-``` bash
+```bash
 $ java -cp javacpp.jar:build/string-utils.jar com.example.StringUtils Yes, it seems to work!
 !,Yeeeikmoorsssttw
 ```
