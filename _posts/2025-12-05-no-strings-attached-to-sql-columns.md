@@ -12,7 +12,7 @@ In simple terms, Dictionary Encoding replaces long, repetitive strings with comp
 In this post, I will discuss the challenges of string management in modern databases and present a PoC developed for **MonetDB** that aims to solve these issues transparently.
  
 **Main Takeaways:**
-*   **The Problem**: Traditional databases (like MariaDB/InnoDB) duplicate strings millions of times, wasting storage and I/O.
+*   **The Problem**: Traditional databases (like MariaDB and MonetDB) duplicate strings millions of times, wasting storage and I/O.
 *   **The Fix**: Manual normalization (like MediaWiki's `comment` table) saves space but adds massive engineering complexity.
 *   **The Solution**: A new `USTR` type for MonetDB that handles dictionary encoding transparently.
 *   **The Result**: up to 30x faster string operations, storage space cut in half, and zero application changes.
