@@ -156,7 +156,7 @@ So, I built a PoC that introduces a new `USTR` data type.
 ### How it works
 
 MonetDB allows us to create user-defined types (UDTs).
-In this case, the SQL `USTR` data type is backed by the corresponding *atom* `ustr` definition:
+In this case, the SQL `USTR` data type is backed by the corresponding `ustr` *atom* definition:
 
 ```sql
 CREATE TYPE USTR external name ustr;
