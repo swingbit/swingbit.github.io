@@ -273,7 +273,7 @@ static int ustrCmp(const void *a, const void *b) {
 }
 ```
 
-Note that `sd_id_get_first_byte` never touches the global string dictionary. Extracting the first byte of an ID is just a matter of bit manipulation.
+Note that `sd_id_get_first_byte()` never touches the global string dictionary. Extracting the first byte of an ID is just a matter of bit manipulation.
 
 Assuming a uniform distribution of ~100 printable ASCII characters, the probability of two strings sharing the same starting byte is roughly 1%. This means we avoid the expensive dictionary lookup 99% of the time. With Unicode, this probability drops even further, making dictionary access a rare exception.
 
