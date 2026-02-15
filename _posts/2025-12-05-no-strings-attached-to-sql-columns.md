@@ -325,7 +325,7 @@ Both datasets are extracted from a knowledge graph about the municipality of Ams
 
 | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | `attributes` | `tokens` |
 | :--- | :--- | :--- |
-| **Description** | All string attributes<br>from a knowledge graph | Terms from a<br>string tokenizer |
+| **Description** | All string attributes<br>from the knowledge graph | Terms from a<br>string tokenizer |
 | **Total Rows** | 6M | 477M |
 | **Unique Strings** | 2.78M (46%) | 2.1M (0.44%) |
 | **Inlined Strings (<=7B)** | 7% | 74% |
@@ -372,7 +372,7 @@ The bulk load improvement can be attributed to the lower amount of I/O required 
 
 The massive improvement in `COUNT DISTINCT` is due to the grouping operation completely performed on integer values, with no string ever touched.
 
-The `ORDER BY` improvements are mainly due to First Byte Inlining, which allows the comparison to be performed on integer values, with no string ever touched.
+The `ORDER BY` improvements are mainly due to First Byte Inlining, which allows the comparison to be performed on integer values *in most cases*.
 
 The `JOIN` improvements are admittedly less dramatic than expected. This is primarily due to the exceptional optimisation of string joins in MonetDB. While `USTR` provides a faster integer-based join (as evidenced by the hash table creation speed), the standard string implementation is highly competitive.
 
