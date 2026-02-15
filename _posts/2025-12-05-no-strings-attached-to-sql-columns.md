@@ -294,7 +294,7 @@ For example, the string "Hello" can be stored in a 64-bit ID like this (the stri
 ```
 
 This special ID (identified by the last byte being 0) does not represent an index into the global dictionary. It is the string itself.
-In this case, `sd_str_from_id()` converts the ID to a string with a 0-cost cast:
+In this case, `sd_str_from_id()` converts the ID to a string with a zero-cost cast:
 ```c
   s = (unsigned char*)&u;
 ```
