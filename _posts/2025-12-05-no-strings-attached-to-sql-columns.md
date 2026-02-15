@@ -282,7 +282,7 @@ If we were to sort a set of URLs with this technique, it would not bring any ben
 
 ### Short String Inlining (SSI)
 Avoiding *lookups* to the global dictionary is a great way to make the `ustr` atom efficient. 
-Do you know what is even more efficient? Not *using* the global dictionary at all.
+Do you know what is even more efficient? *Not using* the global dictionary at all.
 
 For strings up to 7 bytes (plus at least one null terminator) we can store the string *directly* in the 64-bit ID.
 No dictionary storage needed.
