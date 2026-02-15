@@ -37,8 +37,8 @@ To understand why we need better solutions, we first need to look at how differe
 
 ### MariaDB/InnoDB (Used by MediaWiki)
 
-MediaWiki typically runs on **MariaDB** using the **InnoDB** storage engine. InnoDB is a row-oriented engine.
-Short strings are stored inline within the 16KB data page, while larger ones spill over into separate "overflow pages" on disk.
+MediaWiki typically runs on **MariaDB** using the **InnoDB** storage engine.
+Short strings are stored within the 16KB data page, while larger ones spill over into separate "overflow pages" on disk.
 
 If 1,000 rows contain the string "fix typo", InnoDB physically stores that string 1,000 times. This wastes massive amounts of buffer pool (RAM) memory, as identical bytes are loaded over and over again.
 
@@ -47,7 +47,7 @@ This lack of de-duplication is a **deliberate design choice to prioritise insert
 
 To de-duplicate strings on the fly, the database would need to check *every single insert* against all existing strings to see if it already exists. This would require an expensive index lookup or hash calculation for every row, killing write performance.
 
-So, databases default to "write it all down fast" and leave the redundancy problem to the user. But without explicit Dictionary Encoding, you suffer from:
+So, databases default to "write it all down fast" and leave the redundancy problem to the user.
 
 This approach creates several inefficiencies:
 
