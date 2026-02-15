@@ -149,7 +149,7 @@ An ideal Dictionary Encoding solution would be:
 After years of performing these same manual string optimisations myself—creating dictionary tables, managing keys, and debugging race conditions—I decided I wanted to check the feasibility of that "utopian" goal of a native Dictionary Encoding.
 I said to myself: "It won't work, but let's try, just for fun."
 
-I chose **MonetDB** for this experiment because of my many years of experience with its codebase. Like MariaDB, MonetDB standard strings face similar storage issues (it manages strings using a fixed-size column of offsets pointing to a large, separate memory heap which does **not** automatically de-duplicate). 
+I chose **MonetDB** for this experiment because of my many years of experience with its codebase. Like MariaDB, MonetDB standard strings face similar storage issues (it manages strings using a fixed-size column of offsets pointing to a large, separate memory heap which only performs a partial and opportunistic de-duplication). 
 
 So, I built a PoC that introduces a new `USTR` data type.
 
