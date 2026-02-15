@@ -387,7 +387,7 @@ It is imperative to keep locks for as short as possible, in particular for the w
 It pays off to invest time in an **optimistic lookup**, with either no lock at all, or with a read lock.
 Only when the lookup fails, a write lock is necessary.
 
-It helps to keep a small **staging area** where new entries are collected, and periodically flushed to the main dictionary in a single batch. This optimised I/O and minimises lock contention.
+It helps to keep a small **staging area** where new entries are collected, and periodically flushed to the main dictionary in a single batch. This optimises I/O and minimises lock contention.
 
 **Dictionary sharding** greatly reduces contention. Given a set of `N` shards, each string goes to a shard based on `hash(string) % N`.
 This way, the chances of concurrent access to the same shard are reduced by a factor of `N`.
