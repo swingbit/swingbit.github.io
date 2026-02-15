@@ -23,12 +23,12 @@ To understand the magnitude of string data challenges, let's look at **MediaWiki
 
 For years, MediaWiki used a "denormalised" schema. Every time an editor saved a change, a new row was created in the `revision` table. Along with the content changelog, the editor provided an **edit summary** (stored in `rev_comment`) and their username (stored in `rev_user_text`).
 
-| rev_id | rev_user | rev_user_text | rev_comment |
+| `rev_id` | `rev_user` | `rev_user_text` | `rev_comment` |
 | :--- | :--- | :--- | :--- |
-| 10245 | 45 | "WikiExpert_99" | "fixed a typo in the intro" |
-| 10246 | 92 | "Editor_X" | "revert vandalism" |
+| `10245` | `45` | `"WikiExpert_99"` | `"fixed a typo in the intro"` |
+| `10246` | `92` | `"Editor_X"` | `"revert vandalism"` |
 
-With identical strings like "fixed a typo" or "revert vandalism" appearing millions of times across billions of revisions, this redundancy was a massive issue. It bloated the database size by terabytes and filled the IO cache with duplicate bytes.
+With identical strings like `"fixed a typo"` or `"revert vandalism"` appearing millions of times across billions of revisions, this redundancy was a massive issue. It bloated the database size by terabytes and filled the IO cache with duplicate bytes.
 
 
 ## Standard String Handling & Its Inefficiencies
@@ -66,9 +66,11 @@ In the context of this migration, they split these repetitive strings into their
 
 | Field | Type | Data Example |
 | :--- | :--- | :--- |
-| `rev_id` | `INT` | 10245 |
-| `rev_actor` | `BIGINT` | 802 (Pointer to dictionary) |
-| `rev_comment_id` | `BIGINT` | 5501 (Pointer to dictionary) |
+| `rev_id` | `INT` | `10245` |
+| `rev_actor` | `BIGINT` | `802` (Pointer to dictionary) |
+| `rev_comment_id` | `BIGINT` | `5501` (Pointer to dictionary) |
+
+<br>
 
 **Table: `comment` (The Dictionary)**
 
