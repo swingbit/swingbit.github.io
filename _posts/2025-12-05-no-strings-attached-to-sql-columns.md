@@ -281,7 +281,7 @@ Of course, this is a simplification. In reality, the distribution of first bytes
 If we were to sort a set of URLs with this technique, it would not bring any benefit since all strings start with `h`.
 
 ### Short String Inlining (SSI)
-Avoiding *access* to the global dictionary is a great way to make the `ustr` atom efficient. 
+Avoiding *lookups* to the global dictionary is a great way to make the `ustr` atom efficient. 
 Do you know what is even more efficient? Not *using* the global dictionary at all.
 
 For strings up to 7 bytes (plus at least one null terminator) we can store the string *directly* in the 64-bit ID.
