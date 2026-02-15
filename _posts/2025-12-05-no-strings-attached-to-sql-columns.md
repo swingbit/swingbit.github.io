@@ -304,7 +304,7 @@ The opposite, storing a short string as a `ustr`, is equally trivial.
 
 Note that the IDs of inlined strings always have the highest byte set to 0.
 In principle, this would leave the address space for the dictionary index almost untouched, with (2^56)-1 possible indices.
-In the PoC, for simplicity, I didn't use the entire highest byte for the dictionary index, which leaves us with 2^48 usable indices (8 bits for FBI, 8 bits for SSI).
+In the PoC, for simplicity, I avoided using the entire highest byte for the dictionary index, which leaves us with 2^48 usable indices (8 bits for FBI, 8 bits for SSI).
 Still more than sufficient for any practical purpose.
 
 Short String Inlining is not a new idea, but one that fits very well with the `ustr` atom.
