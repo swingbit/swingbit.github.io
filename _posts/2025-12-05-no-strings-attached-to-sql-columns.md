@@ -189,7 +189,7 @@ typedef uint64_t ustr;
 
 ### The dictionary and its primitives
 I'm not covering the actual dictionary implementation here, but as you can imagine it boils down to a string vector with a hash table on top of it to speed up lookups.
-No matter how you implement it, two primitives are needed to interact with the dictionary:
+No matter how you implement it, two primitives are strictly needed to interact with the dictionary: one to look up a string by ID and one to look up an ID by string.
 
 ```c
 char *sd_str_from_id(StringDict *sd, const ustr id);
