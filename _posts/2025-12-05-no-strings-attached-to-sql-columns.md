@@ -208,7 +208,7 @@ Conversely, when a string is selected from a table with a `USTR` column, the DBM
 As one can imagine, the global dictionary can become a bottleneck. Making these two primitives fast and scalable is crucial.
 
 
-### The fastest string handling is to not touch strings at all
+### The Fastest String is an Integer
 Even if those two core primitives are extremely fast, the primary source of efficiency for the `ustr` atom comes from avoiding the global dictionary as much as possible.
 In other words, to stay in the realm of 64bit integers as long as possible, and only touch strings when strictly necessary.
 
