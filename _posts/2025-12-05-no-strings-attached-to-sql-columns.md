@@ -187,7 +187,7 @@ This ID points to a dictionary of strings that is global to the database.
 typedef uint64_t ustr;
 ```
 
-### The dictionary and its primitives
+### The Dictionary and its Primitives
 I'm not covering the actual dictionary implementation here, but as you can imagine it boils down to a string vector with a hash table on top of it to speed up lookups.
 No matter how you implement it, two primitives are strictly needed to interact with the dictionary: one to look up a string by ID and one to look up an ID by string.
 
