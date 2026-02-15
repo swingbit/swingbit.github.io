@@ -325,7 +325,7 @@ Both datasets are extracted from a knowledge graph about the municipality of Ams
 
 | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | `attributes` | `tokens` |
 | :--- | :--- | :--- |
-| **Description** | All string attributes<br>from the knowledge graph | Terms from a<br>string tokenizer |
+| **Description** | All string attributes<br>from the knowledge graph | Terms from a<br>string tokeniser |
 | **Total Rows** | 6M | 477M |
 | **Unique Strings** | 2.78M (46%) | 2.1M (0.44%) |
 | **Inlined Strings (<=7B)** | 7% | 74% |
@@ -392,7 +392,7 @@ It helps to keep a small **staging area** where new entries are collected, and p
 **Dictionary sharding** greatly reduces contention. Given a set of `N` shards, each string goes to a shard based on `hash(string) % N`.
 This way, the chances of concurrent access to the same shard are reduced by a factor of `N`.
 
-I have performed a concurrency test with the `USTR` type on a dataset similar to `tokens` (see above), but larger (1.6B rows, 112M unique strings, 28% inlined).
+I have performed a concurrency test with the `USTR` type on a dataset similar to `tokens` (see above), but larger (1.6B rows, 112M unique strings, 28% inlined) and tokenising to bigrams.
 The test performs a parallel bulk-load of equally-sized chunks of the dataset.
 Each chunk is loaded in parallel by a different thread.
 Notice that this is the most stressful test for concurrency, as all threads are 100% busy with trying to access the dictionary, potentially in write mode.
