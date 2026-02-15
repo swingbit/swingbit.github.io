@@ -101,11 +101,10 @@ While the MediaWiki migrations were successful, they required **years** of engin
 When you implement Dictionary Encoding yourself, you inherit a logical mess:
 
 *   **Ingestion Logic**: You can't just `INSERT` data anymore. MediaWiki developers had to write a complex `CommentStore` class to handle the "Lookup-or-Insert" dance for every single edit:
-    1.  **Hash**: Calculate a CRC32 hash of the new string.
-    2.  **Select**: Query `comment` to see if `(hash, text)` already exists.
-    3.  **Cache Hit**: If found, return the ID.
-    4.  **Cache Miss**: If not, insert the new string and get the ID.
-    5.  **Race Conditions**: Handle the case where two users insert "fix typo" at the exact same millisecond.
+    1.  **Select**: Query `comment` to see if `(hash, text)` already exists.
+    2.  **Cache Hit**: If found, return the ID.
+    3.  **Cache Miss**: If not, insert the new string and get the ID.
+    4.  **Race Conditions**: Handle the case where two users insert "fix typo" at the exact same millisecond.
 
 *   **Migration Pain**: They had to write "Write-Both" logic (writing to both old and new columns) for years to ensure backward compatibility and safety during the transition.
 
