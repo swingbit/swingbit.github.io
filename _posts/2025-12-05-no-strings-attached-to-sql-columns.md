@@ -414,7 +414,7 @@ Several challenges and improvement directions remain, such as:
 - Efficiency improvements for the "unlucky" `USTR` cases (e.g. sets of strings sharing the same first byte)
 - Expansion of the dictionary to centrally store common string statistics, to support all of the above
 
-Will we soon be able to freely use strings in our favourite SQL DBMS without paying the price? I surely hope so.
+Will we soon be able to freely use strings in our favourite SQL DBMS without paying the price? I certainly hope so.
 
 I suggest keeping an eye on future MonetDB releases.
 
