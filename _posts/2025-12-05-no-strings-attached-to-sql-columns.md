@@ -322,9 +322,9 @@ and the performance benefits are undeniable.
 
 ## State of the Art: Compression vs Normalisation
 
-You might be thinking: *"Wait, don't modern columnar stores (like Snowflake, Redshift, DuckDB) already do Dictionary Encoding?"*
+You might be thinking: *"Wait, don't modern columnar stores (like Snowflake, Redshift, DuckDB, MonetDB) already do Dictionary Encoding?"*
 
-Yes, they do, but with a crucial difference: **Scope**.
+Yes, they do (all to a different extent), but with a crucial difference: **Scope**.
 
 Most columnar stores use Dictionary Encoding as a **compression** technique, applied locally per file, row-group, or "chunk".
 *   In **Chunk A**, the string `"Apple"` might be encoded as ID `1`.
