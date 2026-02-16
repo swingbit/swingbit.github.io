@@ -1,6 +1,6 @@
 ---
 layout: post
-title: No Strings attached .. to SQL columns
+title: No Strings attached ... to SQL columns
 date: 2025-12-05
 tags: sql database optimization monetdb
 ---
@@ -378,7 +378,7 @@ Benchmarks were run on a i9-14900T CPU with 64 GB of RAM, using MonetDB 11.55.
 - `COPY INTO`: bulk load the dataset from a CSV file into a table
 - `COUNT DISTINCT`: count the number of distinct strings in the table
 - `ORDER BY`: order the rows of the table by the string column
-- `JOIN`: join the table on string, against a 1K sample of itself
+- `JOIN`: join the table on string against a 1K sample of itself
 - `JOIN (hot)`: the same join a second time (hash tables should be available)
 
 #### Results
@@ -395,7 +395,7 @@ Although the two datasets show different behaviours due to their different distr
 
 The bulk load improvement can be attributed to the lower amount of I/O required to store the strings.
 
-The massive improvement in `COUNT DISTINCT` is due to the grouping operation completely performed on integer values, with no string ever touched.
+The massive improvement in `COUNT DISTINCT` is due to the grouping operation being performed entirely on integer values, with no string ever touched.
 
 The `ORDER BY` improvements are mainly due to First Byte Inlining, which allows the comparison to be performed on integer values *in most cases*.
 
@@ -410,7 +410,7 @@ I will not go into much detail, but the extent of my effort in this direction bo
 The dictionary can be accessed only through the two primitives seen above, which simplifies dictionary lock management.
 It is imperative to keep locks for as short as possible, in particular for the write lock.
 It pays off to invest time in an **optimistic lookup**, with either no lock at all, or with a read lock.
-Only when the lookup fails, a write lock is necessary.
+Only when the lookup fails is a write lock necessary.
 
 It helps to keep a small **staging area** where new entries are collected, and periodically flushed to the main dictionary in a single batch. This optimises I/O and minimises lock contention.
 
@@ -436,7 +436,7 @@ Both the PoC and the benchmarks are far from exhaustive work, but they are a goo
 Several challenges and improvement directions remain, such as:
 - Efficient integration with common string functions, operators, and indices
 - Dynamic sharding
-- Efficiency improvements for the "unlucky" `USTR` cases (e.g. sets of strings sharing the same first byte)
+- Efficiency improvements for the "unlucky" `USTR` cases (e.g., sets of strings sharing the same first byte)
 - Expansion of the dictionary to centrally store common string statistics, to support all of the above
 
 Will we soon be able to freely use strings in our favourite SQL DBMS without paying the price? I certainly hope so.
