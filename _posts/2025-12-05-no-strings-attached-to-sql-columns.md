@@ -87,7 +87,7 @@ This shift was highly effective:
 
 So, problem solved? Not quite. This solution came with a massive engineering cost.
 
-### Normalisation is good, right?
+### Normalisation Is Good, Right?
 It's crucial to distinguish between two types of normalisation happening here:
 
 1.  **Logical Normalisation (The `actor` table)**: The goal is **Data Integrity**. This is **good design**. A User is an entity. They have an ID, a name, registration date, and preferences. Moving them to an `actor` table makes semantic sense and reduces the risk of data corruption.
@@ -135,7 +135,7 @@ When you implement Dictionary Encoding yourself, you inherit a logical mess:
 
     The `actor` table is kept because users are distinct entities (Logical Normalisation), but the `comment` table is gone because edit summaries are just attributes (Physical Optimisation). If only the DBMS could help us achieve this...
 
-## Dear DBMS, We Want Strings, and We Want Them Fast
+## Dear DBMS, It's You Who Needs Integers. We Need Strings
 
 The core problem with the MediaWiki example is that **the DBMS forced the user to do the optimisation work**. Developers had to redesign their schema, write complex application logic, and manage data integrity manually, just to make strings efficient.
 
@@ -155,7 +155,7 @@ I chose **MonetDB** for this experiment because of my many years of experience w
 
 So, I built a PoC that introduces a new `USTR` data type.
 
-### How it works
+### How It Works
 
 MonetDB allows us to create user-defined types (UDTs).
 In this case, the SQL `USTR` data type is backed by the corresponding `ustr` *atom* definition:
@@ -189,7 +189,7 @@ This ID points to a dictionary of strings that is global to the database.
 typedef uint64_t ustr;
 ```
 
-### The Dictionary and its Primitives
+### The Dictionary and Its Primitives
 I'm not covering the actual dictionary implementation here, but as you can imagine it boils down to a string vector with a hash table on top of it to speed up lookups.
 No matter how you implement it, two primitives are strictly needed to interact with the dictionary: one to look up a string by ID and one to look up an ID by string.
 
@@ -210,7 +210,7 @@ Conversely, when a string is selected from a table with a `USTR` column, the DBM
 As one can imagine, the global dictionary can become a bottleneck. Making these two primitives fast and scalable is crucial.
 
 
-### The Fastest String is an Integer
+### The Fastest String Is an Integer
 Even if those two core primitives are extremely fast, the primary source of efficiency for the `ustr` atom comes from avoiding the global dictionary as much as possible.
 In other words, to stay in the realm of 64bit integers as long as possible, and only touch strings when strictly necessary.
 
@@ -317,6 +317,26 @@ Its effectiveness depends of course on the nature of the data, but short strings
 and the performance benefits are undeniable.
 
 
+## State of the Art: Compression vs Normalisation
+
+You might be thinking: *"Wait, don't modern columnar stores (like Snowflake, Redshift, DuckDB) already do Dictionary Encoding?"*
+
+Yes, they do, but with a crucial difference: **Scope**.
+
+Most columnar stores use Dictionary Encoding as a **compression** technique, applied locally per file, row-group, or "chunk".
+*   In **Chunk A**, the string `"Apple"` might be encoded as ID `1`.
+*   In **Chunk B**, the string `"Apple"` might be encoded as ID `5`.
+*   In **Chunk C**, if `"Apple"` is rare, it might not be encoded at all.
+
+This means that while they save storage space, they do **not** provide a global unique ID for the string `"Apple"`. To join Chunk A and Chunk B, the engine still has to decode the values or map them to a common temporary dictionary. Use cases like `JOIN` or `GROUP BY` cannot assume that `ID(A) == ID(B)` means `String(A) == String(B)`.
+
+The `USTR` type is spiritually similar to ClickHouse's `LowCardinality`, but with a more fundamental ambition. While `LowCardinality` is an *optimisation* that may fall back to local dictionaries or require re-encoding during joins across tables, `USTR` enforces **Global Normalisation** as a strict invariant. It guarantees that `"Apple"` is ID `1024` everywhere in the database, across all tables. This allows the engine to execute complex queries entirely on integers, treating strings as first-class numeric citizens.
+
+It is worth noting that explicit compression techniques like [FSST](https://www.vldb.org/pvldb/vol13/p2649-boncz.pdf) (used by DuckDB) also primarily target storage reduction rather than execution speed through global unique IDs. However, because they solve different problems, they can be combined. One could use FSST to compress the unique strings *inside* the global `USTR` dictionary to achieve even greater storage savings.
+
+*Note: In the early stages of this PoC, I actually implemented a compression scheme for the dictionary strings, but it was later removed because the additional storage savings did not justify the added implementation complexity and prevented some optimisations.*
+
+
 ## Results
 
 Some preliminary results seem to indicate that this approach is very promising.
@@ -406,7 +426,7 @@ This plot shows the performance of the parallel bulk-load in relation to the num
 The plot clearly demonstrates that adding shards effectively **reduces contention**, leading to significant performance gains as concurrency increases.
 The **minimal impact on single-threaded performance** confirms that the locking overhead introduced by sharding is negligible.
 
-## PoC status and future work
+## PoC Status and Future Work
 
 Both the PoC and the benchmarks are far from exhaustive work, but they are a good indication of the potential of this approach.
 
