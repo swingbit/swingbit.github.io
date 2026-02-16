@@ -213,7 +213,7 @@ Conversely, when a string is selected from a table with a `USTR` column, the DBM
 As one can imagine, the global dictionary can become a bottleneck. Making these two primitives fast and scalable is crucial.
 
 It is also important to note that the dictionary itself is **immutable**. Strings are never updated or deleted from the dictionary (unused strings could be removed by a background vacuum process, but I did not implement this in the PoC).
-If you update a row: `UPDATE t SET s='World' WHERE s='Hello'`, the engine simply looks up `'World'`, gets its ID (say, `2`), and updates the integer column in the table. The string `'Hello'` remains in the dictionary at ID `1`, in case other rows still refer to it. This makes updates as fast as integer updates.
+If you update a row: `UPDATE t SET s='World' WHERE s='Hello'`, the engine simply looks up `'World'`, gets its ID (say, `2`), and updates the integer column in the table. The string `'Hello'` remains in the dictionary at ID `1`, in case other rows still refer to it (no reference counts are kept, it would be too expensive).
 
 
 ### The Fastest String Is an Integer
