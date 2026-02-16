@@ -212,6 +212,9 @@ Conversely, when a string is selected from a table with a `USTR` column, the DBM
 
 As one can imagine, the global dictionary can become a bottleneck. Making these two primitives fast and scalable is crucial.
 
+It is also important to note that the dictionary itself is **immutable**. Strings are never updated or deleted from the dictionary (unused strings could be removed by a background vacuum process, but I did not implement this in the PoC).
+If you update a row: `UPDATE t SET s='World' WHERE s='Hello'`, the engine simply looks up `'World'`, gets its ID (say, `2`), and updates the integer column in the table. The string `'Hello'` remains in the dictionary at ID `1`, in case other rows still refer to it. This makes updates as fast as integer updates.
+
 
 ### The Fastest String Is an Integer
 Even if those two core primitives are extremely fast, the primary source of efficiency for the `ustr` atom comes from avoiding the global dictionary as much as possible.
@@ -341,8 +344,7 @@ It is worth noting that explicit compression techniques like [FSST](https://www.
 
 
 ## Results
-
-Some preliminary results seem to indicate that this approach is very promising.
+The concept of a global dictionary immediately raises concerns about performance bottlenecks—particularly regarding insertion contention and lookup overheads. However, despite these theoretical challenges, preliminary results indicate that this approach is highly promising.
 
 ### Datasets
 I used two datasets for benchmarking.
@@ -438,6 +440,7 @@ Several challenges and improvement directions remain, such as:
 - Dynamic sharding
 - Efficiency improvements for the "unlucky" `USTR` cases (e.g., sets of strings sharing the same first byte)
 - Expansion of the dictionary to centrally store common string statistics, to support all of the above
+- Vacuuming the dictionary to reclaim space from deleted strings (offline operation? background thread?)
 
 Will we soon be able to freely use strings in our favourite SQL DBMS without paying the price? I certainly hope so.
 
