@@ -334,7 +334,7 @@ The `USTR` type is spiritually similar to ClickHouse's `LowCardinality`, but wit
 
 It is worth noting that explicit compression techniques like [FSST](https://www.vldb.org/pvldb/vol13/p2649-boncz.pdf) (used by DuckDB) also primarily target storage reduction rather than execution speed through global unique IDs. However, FSST is uniquely interesting because it allows for **random access** to individual compressed strings (unlike block-based compression). This makes it a perfect candidate to compress the unique strings *inside* the global `USTR` dictionary to achieve even greater storage savings without sacrificing lookup performance.
 
-*Note: In the early stages of this PoC, I actually implemented a compression scheme for the dictionary strings, but it was later removed because the additional storage savings did not justify the added implementation complexity and prevented some optimisations.*
+*Note: In the early stages of this PoC, I actually implemented a compression scheme for the dictionary strings (using Unishox2 for short strings and LZ4 for longer ones), but it was later removed because the additional storage savings did not justify the added implementation complexity and prevented some optimisations.*
 
 
 ## Results
