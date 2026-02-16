@@ -419,7 +419,7 @@ It helps to keep a small **staging area** where new entries are collected, and p
 **Dictionary sharding** greatly reduces contention. Given a set of `N` shards, each string goes to a shard based on `hash(string) % N`.
 This way, the chances of concurrent access to the same shard are reduced by a factor of `N`.
 
-I have performed a concurrency test with the `USTR` type on a dataset similar to `tokens` (see above), but larger (1.6B rows, 112M unique strings, 28% inlined) and tokenising to bigrams.
+I have performed a concurrency test with the `USTR` type on a dataset similar to `tokens` (see above), but larger (1.6B rows, 112M unique strings, 28% inlined).
 The test performs a parallel bulk-load of equally-sized chunks of the dataset.
 Each chunk is loaded in parallel by a different thread.
 Notice that this is the most stressful test for concurrency, as all threads are 100% busy with trying to access the dictionary, potentially in write mode.
