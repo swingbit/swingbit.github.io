@@ -5,6 +5,8 @@ date: 2025-12-05
 tags: sql database optimization monetdb
 ---
 
+![String chaos](/assets/images/ustr_string_chaos.png)
+
 Strings are a difficult data type in database management systems. They come with variable sizes, considerable memory footprints, and incur high I/O costs. To mitigate these performance penalties, **String Dictionary Encoding (DE)** is frequently employed.
 
 In simple terms, Dictionary Encoding replaces long, repetitive strings with compact integer IDs, storing the unique strings just once in a separate lookup table.
@@ -16,6 +18,7 @@ In this post, I will discuss the challenges of string management in modern datab
 *   **The Fix**: Manual normalization (like MediaWiki's `comment` table) saves space but adds massive engineering complexity.
 *   **The Solution**: A new `USTR` type for MonetDB that handles dictionary encoding transparently.
 *   **The Result**: up to 30x faster string operations, storage space cut in half, and zero application changes.
+
 
 ## The Struggle: MediaWiki Pre-2017
 
