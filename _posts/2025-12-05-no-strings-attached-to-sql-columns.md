@@ -99,7 +99,7 @@ It's crucial to distinguish between two types of normalisation happening here:
 Physical optimisation is not only applied to string attributes. The same applies to certain **Business Keys**, like URLs or Product Codes. If you have a `page_views` table with a `url` column, it makes no sense (other than for efficiency reasons) to create a `urls` table just to assign integer surrogate keys to URLs.
 The URL *is* the key and should be used as such.
 
-## The Cost of "Explicit" Dictionary Encoding
+## The Cost of Explicit Dictionary Encoding
 
 While the MediaWiki migrations were successful, they required **years** of engineering effort (from 2017 to 2022 for full cleanup). Why? Because the database didn't do it for them.
 
