@@ -260,7 +260,7 @@ This leaves us with enough bits to store 2^56 unique strings - more than enough 
 Then we can rewrite `ustrCmp` like this:
 
 ```c
-static int ustrCmp(const void *a, const void *b) {
+int ustrCmp(const void *a, const void *b) {
   ustr u1 = *(ustr*)a;
   ustr u2 = *(ustr*)b;
 
