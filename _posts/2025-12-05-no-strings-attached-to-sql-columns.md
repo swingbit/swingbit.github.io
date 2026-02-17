@@ -238,7 +238,7 @@ But this is not the case. It's not a matter of implementation, but a matter of m
 It would seem that we cannot escape a full string comparison unless they are equal:
 
 ```c
-static int ustrCmp(const void *a, const void *b) {
+int ustrCmp(const void *a, const void *b) {
   ustr u1 = *(ustr*)a;
   ustr u2 = *(ustr*)b;
 
