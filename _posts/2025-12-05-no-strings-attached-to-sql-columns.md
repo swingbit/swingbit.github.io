@@ -320,7 +320,7 @@ Because First Byte Inlining stores the first byte in the lowest byte of the ID, 
 That is, `sd_id_get_first_byte()` does not even need to know whether the ID is a short string or a dictionary ID.
 
 Its effectiveness depends of course on the nature of the data, but short strings are more common than one might think,
-and the performance benefits are undeniable.
+and this targeted optimisation is hard to bead.
 
 
 ## State of the Art: Compression vs Normalisation
