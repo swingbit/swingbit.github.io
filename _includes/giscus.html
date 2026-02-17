@@ -1,0 +1,31 @@
+{% if site.giscus %}
+<div id="giscus_thread"></div>
+<script>
+  let giscusTheme = "{{ site.giscus.theme }}";
+  let giscusAttributes = {
+    "src": "https://giscus.app/client.js",
+    "data-repo": "{{ site.giscus.repo }}",
+    "data-repo-id": "{{ site.giscus.repo-id }}",
+    "data-category": "{{ site.giscus.category }}",
+    "data-category-id": "{{ site.giscus.category-id }}",
+    "data-mapping": "{{ site.giscus.mapping }}",
+    "data-strict": "{{ site.giscus.strict }}",
+    "data-reactions-enabled": "{{ site.giscus.reactions-enabled }}",
+    "data-emit-metadata": "{{ site.giscus.emit-metadata }}",
+    "data-input-position": "{{ site.giscus.input-position }}",
+    "data-theme": giscusTheme,
+    "data-lang": "{{ site.giscus.lang }}",
+    "crossorigin": "anonymous",
+    "async": "",
+  };
+
+  let giscusScript = document.createElement("script");
+  Object.keys(giscusAttributes).forEach((key) => {
+    if (giscusAttributes[key] !== "") {
+      giscusScript.setAttribute(key, giscusAttributes[key]);
+    }
+  });
+  document.getElementById("giscus_thread").appendChild(giscusScript);
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://giscus.app">comments powered by giscus.</a></noscript>
+{% endif %}

@@ -32,9 +32,23 @@ footer-links:
   googleplus: # anything in your profile username that comes after plus.google.com/
 
 
-# Enter your Disqus shortname (not your username) to enable commenting on posts
+# Enter your Giscus configur# Enter your Disqus shortname (not your username) to enable commenting on posts
 # You can find your shortname on the Settings page of your Disqus account
-disqus: swingbit
+# disqus: swingbitation (from giscus.app)
+
+giscus:
+  repo: "swingbit/swingbit.github.io"
+  repo-id: "MDEwOlJlcG9zaXRvcnkxMDUzMDUyMTE="
+  category: "General"
+  category-id: "DIC_kwDOBkbUe84C2oZr"
+  mapping: "pathname"
+  strict: "0"
+  reactions-enabled: "1"
+  emit-metadata: "0"
+  input-position: "bottom"
+  #theme: "preferred_color_scheme"
+  theme: "light"
+  lang: "en"
 
 # Enter your Google Analytics web tracking code (e.g. UA-2110908-2) to activate tracking
 google_analytics:
