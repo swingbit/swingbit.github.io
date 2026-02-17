@@ -38,15 +38,13 @@ With identical strings like `"fixed a typo"` or `"revert vandalism"` appearing m
 
 To understand why we need better solutions, we first need to look at how different database engines handle strings.
 
-### MariaDB/InnoDB (Used by MediaWiki)
-
 MediaWiki typically runs on **MariaDB** using the **InnoDB** storage engine.
 Short strings are stored within the 16KB data page, while larger ones spill over into separate "overflow pages" on disk.
 
 If 1,000 rows contain the string "fix typo", InnoDB physically stores that string 1,000 times. This wastes massive amounts of buffer pool (RAM) memory, as identical bytes are loaded over and over again.
 
 ### The Design Trade-off
-This lack of de-duplication is a **deliberate design choice to prioritise insertion speed**.
+This lack of de-duplication is a **deliberate design choice to prioritise insertion speed** and is a common trade-off in database design.
 
 To de-duplicate strings on the fly, the database would need to check *every single insert* against all existing strings to see if it already exists. This would require an expensive index lookup or hash calculation for every row, killing write performance.
 
@@ -58,12 +56,14 @@ This approach creates several inefficiencies:
 2.  **Expensive Equality Operations**: To find the most common edit summaries (`GROUP BY summary`), the database must compare the actual string bytes for every single revision, which is significantly slower than comparing integers.
 3.  **Independent Storage**: Even if a database compresses strings internally, they are typically stored independently per table (or even per row). Joining two tables on a string column (`revision.summary = other.summary`) requires comparing the actual string bytes, not efficient integer IDs.
 
-## The Explicit Fix: Schema 2017
+## The Fix: Explicit Dictionary Encoding
 
 After 2017, MediaWiki began a massive multi-year refactoring project ([Actor Migration](https://www.mediawiki.org/wiki/Actor_migration)). 
 The goal was to move from this denormalised model to a [normalised](https://en.wikipedia.org/wiki/Database_normalization) model.
 
 In the context of this migration, they split these repetitive strings into their own tables: `comment` (for edit summaries) and `actor` (for user identities).
+
+This is how Dictionary Encoding was applied to revision comments:
 
 **Table: `revision` (The Main Table)**
 
