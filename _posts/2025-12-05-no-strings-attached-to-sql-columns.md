@@ -425,8 +425,8 @@ This plot shows the performance of the parallel bulk-load in relation to the num
 
 ![Concurrency test](/assets/images/ustr_concurrency.png)
 
-The plot clearly demonstrates that adding shards effectively **reduces contention**, leading to significant performance gains as concurrency increases.
-The **minimal impact on single-threaded performance** confirms that the locking overhead introduced by sharding is negligible.
+Distributing the workload across more shards effectively **reduces contention**, leading to significant performance gains as concurrency increases.
+This advantage becomes clear as soon as 2 or more threads are used, which suggests **minimal overhead** from the sharding itself.
 
 ## PoC Status and Future Work
 
