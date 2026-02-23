@@ -198,14 +198,15 @@ char *sd_str_from_id(StringDict *sd, const ustr id);
 ustr sd_id_from_str(StringDict *sd, const char *s);
 ```
 
-When a string is inserted into a table with a `USTR` column, the DBMS looks up the string in the global dictionary. If the string is not found, it is added to the dictionary and a new ID is assigned to it. If the string is found, the corresponding ID is used.
+When a string is inserted into a table with a `USTR` column, the DBMS looks up the string in the global dictionary.
+If the string is not found, it is added to the dictionary and a new ID is assigned to it. If the string is found, the corresponding ID is used.
 
 ```sql
 CREATE TABLE t (s USTR);
 INSERT INTO t VALUES(‘Hello’);
 ```
 
-Conversely, when a string is selected from a table with a `USTR` column, the DBMS looks up the string in the global dictionary and returns the corresponding string.
+Conversely, when a string is selected from a table with a `USTR` column, the DBMS looks up the ID in the global dictionary and returns the corresponding string.
 
 As one can imagine, the global dictionary can become a bottleneck. Making these two primitives fast and scalable is crucial.
 
