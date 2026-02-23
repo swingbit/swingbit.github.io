@@ -170,7 +170,7 @@ CREATE TYPE USTR external name ustr;
 The atom `ustr` is completely defined by the following structure:
 
 ```c
-mel_atom ustr_init_atoms = {
+mel_atom ustr_init_atom = {
   .name = "ustr",          // atom name
   .basetype = "lng",       // storage type (long integer)
   .size = sizeof(lng),     // size of the atom
