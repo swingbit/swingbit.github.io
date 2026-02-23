@@ -280,8 +280,10 @@ int ustrCmp(const void *a, const void *b) {
   return strcmp(s1, s2);
 }
 ```
+Note that we store the first *byte*, not the first *character* (which could take multiple bytes).
+This is perfectly compatible with MonetDB's internal string representation based on UTF-8 (UTF-8 maintains code-point order under binary sort).
 
-Note that `sd_id_get_first_byte()` never touches the global string dictionary. Extracting the first string byte from the ID is just a matter of bit manipulation.
+The important optimisationhere is that `sd_id_get_first_byte()` never touches the global string dictionary. Extracting the first string byte from the ID is just a matter of bit manipulation.
 
 Assuming a uniform distribution of ~100 printable ASCII characters, the probability of two strings sharing the same starting byte is roughly 1%. This means we avoid the expensive dictionary lookup 99% of the time. With Unicode, this probability drops even further, making dictionary access a rare exception.
 
