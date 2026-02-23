@@ -224,6 +224,8 @@ bool ustrEq(const void *a, const void *b) {
   return *(ustr*)a == *(ustr*)b;
 }
 ```
+Remember that `ustr` is defined as `uint64_t`, which makes this a straightforward and very efficient 64bit comparison.
+
 This is precisely the ultimate goal of a global dictionary. Equal strings have equal IDs. Therefore, we never need to compare strings like the standard string data type does.
 
 ### First Byte Inlining (FBI)
