@@ -36,7 +36,7 @@ With identical strings like `"fixed a typo"` or `"revert vandalism"` appearing m
 
 ## Standard String Handling & Its Inefficiencies
 
-To understand why we need better solutions, we first need to look at how different database engines handle strings.
+To understand why we need better solutions, we first need to look at how database engines handle strings.
 
 MediaWiki typically runs on **MariaDB** using the **InnoDB** storage engine.
 Short strings are stored within the 16KB data page, while larger ones spill over into separate "overflow pages" on disk.
