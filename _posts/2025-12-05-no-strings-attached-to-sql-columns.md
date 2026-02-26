@@ -46,7 +46,7 @@ If 1,000 rows contain the string "fix typo", InnoDB physically stores that strin
 ### The Design Trade-off
 This lack of de-duplication is a **deliberate design choice to prioritise insertion speed** and is a common trade-off in database design.
 
-To de-duplicate strings on the fly, the database would need to check *every single insert* against all existing strings to see if it already exists. This would require an expensive index lookup or hash calculation for every row, killing write performance.
+To de-duplicate strings on the fly, the database would need to check *every single insert* against all existing strings to see if it already exists. This would require an expensive index lookup or hash calculation for every row, affecting write performance.
 
 So, databases default to "write it all down fast" and leave the redundancy problem to the user.
 
