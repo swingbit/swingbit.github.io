@@ -387,7 +387,7 @@ Benchmarks were run on a i9-14900T CPU with 64 GB of RAM, using MonetDB 11.55.
 
 #### Results
 
-| Operation | attributes (String) | attributes (USTR) | tokens (String) | tokens (USTR) |
+| Operation | attributes (`STRING`) | attributes (`USTR`) | tokens (`STRING`) | tokens (`USTR`) |
 | :--- | :--- | :--- | :--- | :--- |
 | `COPY INTO` | 26.19s | 21.91s | 37.44s | 30.93s |
 | `COUNT DISTINCT` | 7.52s | 0.25s | 17.21s | 8.70s |
