@@ -14,7 +14,15 @@ pre {
 
 code {
   font-family: Consolas, "Liberation Mono", Menlo, Courier, monospace;
-  // font-size: smaller;
+  background-color: #efefef;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+pre > code {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
 }
 
 .highlight .c { color: #586E75 } /* Comment */
