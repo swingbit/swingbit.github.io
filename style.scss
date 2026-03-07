@@ -69,6 +69,15 @@ p {
   text-align: justify;
 }
 
+p.subtitle {
+  font-size: 22px;
+  color: $gray;
+  font-family: $titleFont;
+  font-weight: 300;
+  margin-top: -10px;
+  margin-bottom: 30px;
+}
+
 a {
   color: $blue;
   text-decoration: none;
@@ -105,6 +114,10 @@ em, i {
 
 strong, b {
   font-weight: bold;
+}
+
+small {
+  font-size: smaller;
 }
 
 img {
