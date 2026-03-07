@@ -134,6 +134,10 @@ img {
   color: $gray;
 }
 
+.post > .date:first-child {
+  text-align: right;
+}
+
 // Specify the color of the selection
 ::-moz-selection {
   color: $black;

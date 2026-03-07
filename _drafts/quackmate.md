@@ -2,7 +2,7 @@
 layout: post
 title: Quack-Mate
 subtitle: Pushing the Boundaries of Pure SQL Chess
-date: 2026-03-01
+# date: 2026-03-01
 tags: chess duckdb sql
 ---
 
