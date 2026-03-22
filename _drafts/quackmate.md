@@ -6,6 +6,11 @@ subtitle: Pushing the Boundaries of Pure SQL Chess
 tags: chess duckdb sql
 ---
 
+<div style="margin-bottom: 0;">
+    <img src="/assets/images/quackmate.jpg" alt="Quack-Mate" style="margin-bottom: 0;">
+    <div style="text-align: right"><i><small>Image generated with Google Gemini</small></i></div>
+</div>
+
 Let's address the elephant in the room right away: SQL is absolutely not the most convenient or efficient paradigm for programming a chess engine. It is inherently designed for set-based data retrieval, not for the highly branching, depth-first search that characterises traditional chess engines. My intention with Quack-Mate was never to build a competitive engine to dethrone Stockfish. Rather, it was a passionate exploration of a single, slightly mad question: just how far can we push a modern analytical database engine to play chess?
 
 The primary reason for embarking on this project was simply that it seemed nobody had done it before—at least, not like this. While there have been a few attempts to implement chess in databases, they typically rely heavily on procedural extensions like Oracle's PL/SQL or PostgreSQL's PL/pgSQL (with explicit loops and variables), or they are written as C extensions. Implementing a fully functioning chess engine purely through relational algebra and standard SQL queries on a modern analytical engine (like the brilliant DuckDB) felt like uncharted territory.
