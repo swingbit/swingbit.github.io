@@ -750,17 +750,17 @@ The metrics tracked are the chosen move, score (in centipawns), total nodes eval
 
 | Config | Move | Score | Nodes | Time (ms) | NPS | Peak RSS (MB) |
 |---|---|---|---|---|---|---|
-| Recursive (Exhaustive) | e2e4 | 95 | 5,071,234 | 192,238 | 26,380 | 50,587.2 |
-| ID (Exhaustive) | e2e4 | 95 | 5,287,598 | 84,188 | 62,807 | 49,474.3 |
-| BPVS<br>(ID + AB + LMP) | e2e4 | 125 | 176,414 | 9,372 | 18,824 | 12,564.5 |
-| + MVVLVA | e2e4 | 125 | 176,414 | 9,643 | 18,295 | 2,076.5 |
-| + TT | d2d4 | 100 | 218,260 | 10,970 | 19,895 | 2,176.0 |
-| + PST | b1c3 | 110 | 151,175 | 8,130 | 18,595 | 2,176.0 |
-| + Killers | e2e4 | 95 | 151,135 | 8,382 | 18,031 | 2,092.2 |
-| + History | d2d4 | 80 | 184,681 | 9,658 | 19,121 | 2,122.4 |
-| + RFP | b1c3 | 45 | 134,014 | 7,867 | 17,035 | 2,122.4 |
-| + FFP | b1c3 | 110 | 135,042 | 7,981 | 16,921 | 2,015.2 |
-| + LMR | g1f3 | 60 | 104,802 | 6,751 | 15,523 | 1,981.9 |
+| Recursive (Exhaustive) | d2d4 | 110 | 5,071,234 | 186,450 | 27,199 | 49,607.0 |
+| ID (Exhaustive) | d2d4 | 110 | 5,287,598 | 80,555 | 65,640 | 48,755.1 |
+| BPVS<br>(ID + AB + LMP + Batches) | e2e4 | 110 | 834,440 | 19,693 | 42,373 | 12,406.1 |
+| + MVVLVA | e2e4 | 110 | 834,440 | 18,718 | 44,579 | 3,963.9 |
+| + TT | d2d4 | 110 | 860,024 | 20,468 | 42,017 | 3,998.3 |
+| + PST | d2d4 | 100 | 761,339 | 16,201 | 46,993 | 3,998.3 |
+| + Killers | e2e4 | 110 | 761,278 | 16,105 | 47,271 | 3,710.4 |
+| + History | e2e4 | 110 | 761,273 | 16,122 | 47,219 | 3,758.2 |
+| + RFP | d2d4 | 100 | 804,509 | 18,614 | 43,221 | 3,758.2 |
+| + FFP | e2e4 | 110 | 283,934 | 9,754 | 29,111 | 3,344.5 |
+| + LMR | e2e4 | 110 | 306,699 | 9,716 | 31,567 | 2,052.6 |
 
 ### Board 2: Complex Mid-game
 <small><code>r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10</code></small>
@@ -771,15 +771,15 @@ The metrics tracked are the chosen move, score (in centipawns), total nodes eval
 |---|---|---|---|---|---|---|
 | Recursive (Exhaustive) | - | - | - | - | - | OOM |
 | ID (Exhaustive) | - | - | - | - | - | OOM |
-| BPVS<br>(ID + AB + LMP) | c3d5 | 330 | 392,270 | 21,097 | 18,594 | 3,431.6 |
-| + MVVLVA | c3d5 | 330 | 291,525 | 16,667 | 17,491 | 2,764.8 |
-| + TT | c3d5 | 330 | 280,631 | 16,613 | 16,892 | 2,087.3 |
-| + PST | c3a4 | 250 | 291,001 | 16,622 | 17,506 | 2,108.7 |
-| + Killers | c3a4 | 250 | 280,046 | 16,387 | 17,090 | 2,076.1 |
-| + History | c3a4 | 250 | 291,076 | 17,106 | 17,016 | 2,123.8 |
-| + RFP | c3a4 | 250 | 224,315 | 14,003 | 16,019 | 2,060.6 |
-| + FFP | c3a4 | 250 | 190,103 | 13,522 | 14,058 | 1,930.9 |
-| + LMR | g5f6 | 5 | 89,368 | 7,699 | 11,608 | 1,775.0 |
+| BPVS<br>(ID + AB + LMP + Batches) | c3d5 | 410 | 2,667,238 | 71,651 | 37,225 | 11,108.5 |
+| + MVVLVA | c3d5 | 335 | 1,792,858 | 45,977 | 38,994 | 11,052.0 |
+| + TT | c3d5 | 335 | 1,836,458 | 48,275 | 38,041 | 8,407.3 |
+| + PST | c3d5 | 335 | 1,775,465 | 47,296 | 37,540 | 8,364.8 |
+| + Killers | c3d5 | 335 | 1,676,612 | 45,807 | 36,601 | 7,997.8 |
+| + History | c3d5 | 335 | 1,676,612 | 45,190 | 37,101 | 7,870.4 |
+| + RFP | c3d5 | 335 | 212,065 | 14,315 | 14,814 | 7,870.2 |
+| + FFP | c3d5 | 330 | 3,647,133 | 100,753 | 36,199 | 14,613.7 |
+| + LMR | c3d5 | 330 | 3,800,686 | 99,543 | 38,181 | 15,155.1 |
 
 ### Board 3: "KiwiPete" (Highly Tactical)
 <small><code>r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1</code></small>
@@ -790,15 +790,15 @@ The metrics tracked are the chosen move, score (in centipawns), total nodes eval
 |---|---|---|---|---|---|---|
 | Recursive (Exhaustive) | - | - | - | - | - | OOM |
 | ID (Exhaustive) | - | - | - | - | - | OOM |
-| BPVS<br>(ID + AB + LMP) | d5e6 | 385 | 557,040 | 27,820 | 20,023 | 3,767.6 |
-| + MVVLVA | d5e6 | 385 | 360,127 | 19,681 | 18,299 | 3,767.6 |
-| + TT | d5e6 | 385 | 360,267 | 20,692 | 17,411 | 2,543.7 |
-| + PST | d5e6 | 385 | 324,018 | 18,330 | 17,677 | 2,540.5 |
-| + Killers | d5e6 | 385 | 323,493 | 18,003 | 17,969 | 2,291.7 |
-| + History | d5e6 | 385 | 323,027 | 18,057 | 17,889 | 22,62.5 |
-| + RFP | d5e6 | 385 | 263,686 | 15,568 | 16,937 | 22,62.5 |
-| + FFP | d5e6 | 385 | 242,347 | 15,885 | 15,257 | 2,002.0 |
-| + LMR | d5e6 | 385 | 253,542 | 17,047 | 14,873 | 2,027.3 |
+| BPVS<br>(ID + AB + LMP + Batches) | e2a6 | 375 | 9,359,433 | 227,171 | 41,200 | 21,576.4 |
+| + MVVLVA | e2a6 | 375 | 7,526,634 | 188,566 | 39,915 | 21,429.7 |
+| + TT | e2a6 | 375 | 7,524,113 | 187,634 | 40,100 | 20,685.0 |
+| + PST | e2a6 | 375 | 6,912,192 | 154,190 | 44,829 | 20,493.1 |
+| + Killers | e2a6 | 375 | 6,912,008 | 155,012 | 44,590 | 20,400.0 |
+| + History | e2a6 | 375 | 6,912,171 | 156,670 | 44,119 | 20,568.4 |
+| + RFP | e2a6 | 170 | 468,312 | 16,762 | 27,939 | 20,440.6 |
+| + FFP | e2a6 | 170 | 403,228 | 16,334 | 24,686 | 3,053.6 |
+| + LMR | e2a6 | 170 | 412,643 | 16,661 | 24,768 | 2,950.3 |
 
 ### Board 4: Endgame
 <small><code>8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1</code></small>
@@ -807,59 +807,46 @@ The metrics tracked are the chosen move, score (in centipawns), total nodes eval
 
 | Config | Move | Score | Nodes | Time (ms) | NPS | Peak RSS (MB) |
 |---|---|---|---|---|---|---|
-| Recursive (Exhaustive) | b4f4 | 110 | 716,960 | 26,451 | 27,105 | 7,594.3 |
-| ID (Exhaustive) | b4f4 | 110 | 766,295 | 16,113 | 47,558 | 7,517.6 |
-| BPVS<br>(ID + AB + LMP) | b4f4 | 110 | 50,877 | 5,121 | 9,934 | 3,733.7 |
-| + MVVLVA | b4f4 | 110 | 40,954 | 4,827 | 8,485 | 829.4 |
-| + TT | b4f4 | 110 | 46,032 | 4,860 | 9,471 | 814.0 |
-| + PST | b4f4 | 110 | 47,067 | 4,934 | 9,540 | 814.0 |
-| + Killers | b4f4 | 110 | 40,184 | 4,549 | 8,833 | 780.7 |
-| + History | b4f4 | 110 | 59,647 | 5,299 | 11,256 | 847.8 |
-| + RFP | b4f4 | 110 | 55,368 | 5,303 | 10,441 | 847.8 |
-| + FFP | b4f4 | 110 | 33,767 | 4,771 | 7,078 | 845.6 |
-| + LMR | b4f4 | 110 | 37,119 | 4,877 | 7,612 | 789.9 |
+| Recursive (Exhaustive) | b4f4 | 110 | 716,960 | 24,158 | 29,678 | 7,598.5 |
+| ID (Exhaustive) | b4f4 | 110 | 766,295 | 15,619 | 49,062 | 7,598.5 |
+| BPVS<br>(ID + AB + LMP + Batches) | b4f4 | 110 | 183,780 | 6,819 | 26,950 | 3,158.0 |
+| + MVVLVA | b4f4 | 110 | 191,927 | 7,175 | 26,748 | 1,367.4 |
+| + TT | b4f4 | 110 | 164,969 | 6,532 | 25,257 | 1,367.4 |
+| + PST | b4f4 | 110 | 140,247 | 6,276 | 22,345 | 1,259.7 |
+| + Killers | b4f4 | 110 | 135,138 | 6,162 | 21,930 | 1,143.6 |
+| + History | b4f4 | 110 | 135,138 | 6,148 | 21,980 | 1,104.2 |
+| + RFP | b4f4 | 110 | 91,956 | 5,491 | 16,746 | 1,104.2 |
+| + FFP | b4f4 | 110 | 105,394 | 5,913 | 17,825 | 1,002.6 |
+| + LMR | b4f4 | 110 | 106,700 | 5,691 | 18,749 | 1,008.8 |
 
 ### Analysing the Results
 
-The data tells a compelling story about how memory and performance behave in an SQL-based chess engine, and the findings highlight the fundamental differences compared to classical C++ or Rust implementations.
+The benchmark data highlights the fundamental differences between building a chess engine in SQL versus a classical systems language, particularly regarding memory allocation and heuristic overhead.
 
-**The Base Impact of Batched Search**
-Still, while ID helps with buffer bloat, it doesn't solve the core combinatorial explosion. To actually tame the memory footprint, we need `BPVS (ID + AB + LMP + Batches)`. The Batched architectures shine because they integrate pruning with transactional chunks: memory is only held for the current batch being evaluated, aggressively preventing the tree from growing out of control. By breaking the expansion into transactional chunked limits (evaluating exactly 4 moves per parent in the first batch), BPVS definitively shatters the memory wall that plagues recursive CTEs.
+**Taming the Memory Wall with Batched Search**
+Pure recursive or iterative deepening searches (ID) suffer from combinatorial explosion, keeping the entire unpruned breadth of the tree in memory simultaneously. The Batched Principal Variation Search (BPVS) solves this by integrating Alpha-Beta pruning with transactional chunking: memory is only held for the current batch being evaluated. By breaking the expansion into strict limits (evaluating exactly 4 moves per parent in the initial batch), BPVS definitively shatters the memory wall. 
 
-On the Start Position, moving from the purely combinatorial `ID (Exhaustive)` down to `BPVS` cuts the memory footprint by an additional **90%**, dropping it from 23GB down to a comfortable **2.6GB**. Similarly, in the Endgame position, memory drops from 11GB down to just 1.5GB! 
+On the Start Position, moving from the purely combinatorial `ID (Exhaustive)` down to `BPVS` cuts the memory footprint by **75%**, dropping it from a massive 49GB down to a manageable 12GB. In the Endgame position, the footprint drops from 7.5GB down to just 3.1GB, making the engine viable on standard hardware.
 
-**The Invisible Impact of MVVLVA**
-One of the most counter-intuitive results in the table is that adding MVVLVA (sorting capturing moves first) to the Start Position had **zero impact** on the node count or memory footprint. Both the unordered `BPVS` and the ordered `BPVS + MVVLVA` configurations expanded exactly 176,414 nodes and consumed ~2.6GB of RAM.
+**The Overhead of Move Ordering in SQL**
+In classical engines, lookups against Transposition Tables (TT) or Piece-Square Tables (PST) cost nanoseconds. In a relational database engine, they require explicit `LEFT JOIN` operations across large tables, introducing measurable query execution overhead.
 
-How is this possible? Because of how the batched search evaluates Beta cutoffs. In the Start Position, the PV line establishes an Alpha bound of roughly +125 centipawns. When the engine generates Black's responses, it evaluates the first 4 moves in `batch_id = 0`. Since it's Black's turn (a Minimizing node), Black just needs to return *any* sequence that scores less than +125 to prove the branch is sub-optimal and prune the remaining 30+ moves from the parent. Since almost any random quiet move at the start of a chess game fails to beat +125, the unordered batches proved the cutoff just as efficiently as the ordered ones! 
+The data shows this is a calculated trade-off. On highly tactical boards like "KiwiPete" (Board 3), the combined effect of TT, PST, and History heuristics provides massive structural benefits, reducing the node count from 9.3 million down to 6.9 million and shaving nearly 70 seconds off the compute time. Conversely, on simpler boards like the Start Position, the complex `ORDER BY` clauses required for these heuristics do not produce enough Alpha-Beta cutoffs to offset their SQL join overhead, occasionally resulting in fractionally slower times despite evaluating fewer nodes.
 
-Where MVVLVA truly shines is in highly complex tactical positions where quiet moves fail to cause cutoffs. In the "KiwiPete" position (Board 3) and the Complex Mid-game (Board 2), adding MVVLVA drops the required search nodes by roughly 100,000, saving several seconds of compute time. While sorting captures is mathematically irrelevant for early fail-low cutoffs on quiet boards, DuckDB *itself* responds remarkably well to explicit `ORDER BY` window functions. By giving the database explicit ranking constraints, the query planner streams the rows through Top-N pushdowns rather than arbitrarily materializing them.
+**The Dynamics of Pruning and Search Instability**
+Aggressive pruning techniques—Reverse Futility Pruning (RFP), Forward Futility Pruning (FFP), and Late Move Reduction (LMR)—are absolute structural requirements to prevent the analytical database from drowning in its own tree generation. However, they demonstrate highly position-dependent behavior.
 
-**The Mixed Bag of Move Ordering**
-Adding heuristics like Transposition Tables (TT), Piece-Square Tables (PST), Killer Moves, and History Heuristics yields diminishing, and sometimes contradictory, returns. 
-Unlike in classical engines where TT lookups cost nanoseconds, joining across a Transposition Table in SQL adds measurable query overhead. On "KiwiPete," TT and PST reduced the node count from ~385K down to ~345K, shaving off roughly 2 seconds of compute time. But on the Start Position, adding these ordering techniques actually *cost* a fractional amount of time due to the complexity of the SQL `ORDER BY` clause. This proves that complex ordering heuristics are a double-edged sword in SQL; if they don't produce massive tree cutoffs, their query overhead outweighs their benefit.
+In the Complex Mid-game (Board 2), static pruning (`RFP`) is phenomenally effective, slashing the node count from 1.6M down to just 212K and completing the search in 14 seconds. Yet, when forward pruning (`FFP` and `LMR`) are added on top, the node count unexpectedly spikes back up to 3.8M. 
 
-**The Paradox of Forward Pruning (FFP & LMR)**
-The aggressive pruning techniques—Reverse Futility Pruning (RFP), Forward Futility Pruning (FFP), and Late Move Reduction (LMR)—demonstrate highly position-dependent behavior, and perfectly illustrate **Search Instability**, a classic pathological interaction between unsafe forward pruning and Alpha-Beta bounds. 
+This behavior illustrates a concept known as "soft" search instability. Because the engine operates on a strict "Zero-Window" search (`[pvScore - 1, pvScore]`) during its batched evaluations, an aggressively reduced move that turns out to be tactically superior will fail high, breaking the narrow Alpha-Beta bounds. This forces the engine to discard the pruned batch and re-verify the branch at full depth. While this re-search mechanism causes localized spikes in node volume, it acts as a critical safety net: despite the aggressive SQL pruning, the engine correctly and consistently identifies powerful tactical sequences like the `c3d5` knight jump across all configurations, ensuring the tactical evaluation remains rock-solid.
 
-Look at the varying effects of LMR across the four boards (compared against the base FFP configuration):
-- In the **Endgame** (Board 4) and **KiwiPete** (Board 3), adding LMR actually *increases* the tree size (from 33K to 37K in Endgame, and 242K to 253K in KiwiPete). This is "soft" search instability: LMR incorrectly reduced a move that Alpha-Beta ultimately needed to trigger a clean cutoff, forcing the engine to expend extra nodes re-verifying its bounds.
-- In the **Start Position** (Board 1) and **Complex Mid-game** (Board 2), we see "hard" search instability. In the Mid-game, `LMR` drastically slashes the node count from ~190K down to 89K. On paper, it looks like a massive performance win. However, notice the move played and the score attached: the engine completely abandons the solid +250 advantage of `c3a4` and instead plays `g5f6`, dropping its own evaluation down to a dismal +5. A similar phenomenon occurs on the Start Position, where the score drops from +110 to +60.
-
-How does searching *faster* result in playing *worse*? 
-- **FFP/LMR** try to greedily skip or reduce "bad looking" moves to save time. But if they accidentally reduce the depth of a brilliant tactical sequence that looks statically terrible, they completely hide the true score of that branch. 
-- Because LMR hid a strong tactical refutation in the Mid-game, the branch returned an artificially *low* score. Since the engine is now partially "blind" to the true tactical sequence, it thinks `c3a4` isn't very strong anymore, so it settles for the vastly inferior `g5f6`. 
-
-By greedily trying to save nodes at the leaf level, LMR broke the engine's tactical vision. This is why tuning chess heuristics is so notoriously difficult: if a pruning technique is too aggressive, it doesn't just make the engine faster—it makes it stupid.
-The benchmark clearly demonstrates that building a chess engine in SQL requires an entirely different mindset. Techniques that are mandatory in C++ (like exhaustive TT lookups) become costly bottlenecks in SQL. Conversely, aggressive pruning (LMP, RFP) and early sorting (MVVLVA) are not just "nice-to-have" optimisations—they are absolute structural requirements to prevent the analytical database from drowning in its own memory allocations.
-
-## Answering the Database Experts
+## Some Database-Related Questions
 
 If you've spent any time tuning analytical databases, a few critical questions are likely screaming at you by now. *Are you actually using DuckDB at its best? Have you analyzed your query plans? Have you profiled where the time goes? Can the queries be rewritten to trigger more efficient ones?*
 
 Let's address the database experts directly:
 
-**Evidence for the Database Choices**
+**Why DuckDB?**
 Why build this in DuckDB and not another SQL engine? The evidence is largely structural. Analytical giants like ClickHouse provide immense power (and native unsigned 64-bit integers), but they typically operate as distinct server instances. Passing millions of chess board states back and forth over a network socket introduces crippling latency. PostgreSQL, while beloved, fundamentally lacks native unsigned 64-bit integers; forcing it to evaluate 128-bit extensions or mask signed `bigint` columns destroys query performance. DuckDB hitting the exact sweet spot: native `UBIGINT` bitwise mathematics executed entirely in-process within the same memory space as the orchestration loop.
 
 **Profiling: Where Does the Time Actually Go?**
