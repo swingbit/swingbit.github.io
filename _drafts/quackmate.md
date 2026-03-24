@@ -54,11 +54,11 @@ To replicate this state-of-the-art representation in a database, we hit an immed
 
 Alternatively, you could reach for larger or non-standard SQL data types, but this solution isn't optimal either:
 - **ClickHouse**: The leader in this space, offering native 128-bit (`UInt128`) and even 256-bit unsigned integers.
-- **MonetDB**: Offers a native 128-bit `HUGEINT` type. 
+- **MonetDB**: Offers a native 128-bit `HUGEINT` type. An early prototype of Quack-Mate actually supported both DuckDB and MonetDB (using the `HUGEINT` type), as they both are incredibly fast analytical engines.
 - **Snowflake**: Its primary numeric type is `NUMBER`, but its internal engine and bitwise functions (like `BITAND`, `BITSHIFTLEFT`) actually operate on and return signed 128-bit integers.
 - **PostgreSQL (via Extension)**: While lacking native support in core, the popular `pg-uint128` extension adds unsigned 128-bit integers (which suffers from the severe query overhead of executing over a non-native data type).
 
-This is precisely where DuckDB shines. While a few other databases do support unsigned 64-bit integers natively (such as MySQL and MariaDB with `BIGINT UNSIGNED`, and ClickHouse with `UInt64`), DuckDB combines native `UBIGINT` support without the overhead of 128-bit arithmetic, while providing the embedded analytical engine necessary to process massive game trees locally.
+This is precisely where DuckDB shines. I eventually focused on it because it hits the exact sweet spot: it provides native `UBIGINT` support to avoid 128-bit overhead, while its high-performance analytical engine allows us to process massive game trees entirely in-process. While a few other databases also support unsigned 64-bit integers (such as MySQL, MariaDB, and ClickHouse), DuckDB’s unique architecture provides the perfect environment for a SQL-based engine to prove its worth.
 
 By storing the entire game state as a single database row containing 12 `UBIGINT` columns, we can finally translate chess computations into pure, vectorised SQL operations. The profound elegance of bitboards is most striking when moving a piece down the search tree. Instead of looping over a traditional array to painstakingly clear "Square A1" and write to "Square A2", a move mathematically distills down to two simple square-presence flips. By applying two bitwise `XOR` operations against the original bitboard—one to toggle off the "from" square, and one to toggle on the "to" square—the piece instantly teleports to its new destination. Because DuckDB supports these bitwise operators natively on unsigned integers, the analytical engine can execute these elegant binary flips across millions of rows simultaneously at staggering speeds:
 
@@ -330,7 +330,22 @@ This recursive CTE approach is incredibly neat, but its limitations become appar
 
 To search deep enough to play well, engines rely on **Alpha-Beta Pruning**. Conceptually, Alpha-Beta pruning is a mathematical shortcut: if you are evaluating a sequence of moves and you discover a single opponent response that completely refutes your idea (e.g., you lose your Queen for nothing), you can immediately stop searching that branch. You don't need to know *exactly* how badly you lose if you play it; you just need to know it's worse than an alternative you already found.
 
-For Alpha-Beta pruning to be effective, it inherently requires a **Depth-First Search (DFS)**. The engine must plunge down a single, promising branch all the way to the end to establish a strong "score to beat." This threshold is tracked using two mathematical bounds: **Alpha** (the minimum guaranteed score for the current player) and **Beta** (the maximum score the opponent will ever allow you to achieve). Once those bounds are established, the engine can use them to rapidly prune the remaining, shallower branches.
+For Alpha-Beta pruning to be effective, it inherently requires a **Depth-First Search (DFS)**. The engine must plunge down a single, promising branch all the way to the end to establish a strong "score to beat." This threshold is tracked using two mathematical bounds: **Alpha** (the minimum guaranteed score for the current player) and **Beta** (the maximum score the opponent will ever allow you to achieve). 
+
+To understand the math intuitively, imagine you are shopping for a new house with a very picky partner:
+
+*   **Alpha (Your "Floor"):** You’ve already found a nice house at Dealer A for €200,000. This is your "best found so far." You will never accept anything worse than this.
+*   **Beta (The Opponent's "Ceiling"):** Your partner has set a hard limit: "I will not live in a house that costs more than €250,000." This is the maximum they will ever allow you to achieve.
+
+Now you visit House B. As soon as the real estate agent tells you the price is €260,000, you walk out. You don't need to check the kitchen or the backyard—you already know your partner will never agree to it. This is an **Alpha-Beta Cutoff**.
+
+In the engine's search tree, we classify these moments as:
+
+*   **Fail-Low (score ≤ Alpha):** You found a house for €150,000, but it’s a total wreck. It's worse than your €200,000 floor. You ignore it and keep looking.
+*   **Fail-High (score ≥ Beta):** You found a mansion for €300,000. It's "too good"—meaning it exceeds the limit your partner set. Since they will never let the game reach this state, you stop searching this branch immediately.
+
+Establishment of these bounds is what allows an engine to ignore 99% of the game tree. Once they are established, the engine can use them to rapidly prune the remaining, shallower branches.
+
 
 This is exactly where the single-query SQL approach fails. A `WITH RECURSIVE` query is inherently a **Breadth-First Search (BFS)** engine. It generates *all* moves at depth 1, then *all* responses at depth 2 simultaneously. It cannot plunge down a single path to establish a pruning threshold before looking at the others. Because the engine must hold every single position of every single depth in memory simultaneously, a search depth of merely 3 logical turns becomes a hard limit. Going any deeper means waiting an eternity and watching your RAM vanish into the ether. 
 
@@ -793,8 +808,8 @@ To anchor the SQL results in an absolute frame of reference, the tables include 
 | + RFP | d2d4 | 100 | 804,509 | 18,614 | 3,758.2 |
 | + FFP | e2e4 | 110 | 283,934 | 9,754 | 3,344.5 |
 | + LMR | e2e4 | 110 | 306,699 | 9,716 | 2,052.6 |
-| **Quack-Mate JS (DFS Reference)** | **d2d4** | **100** | **3,838** | **253** | **94.9** |
-| **Stockfish 18 (Ceiling)** | e2e4 | 29 | 541 | 1 | 421.8 |
+| Quack-Mate JS (DFS Reference) | d2d4 | 100 | 3,838 | 253 | 94.9 |
+| Stockfish 18 (Ceiling) | e2e4 | 29 | 541 | 1 | 421.8 |
 
 ### Board 2: Complex Mid-game
 <small><code>r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10</code></small>
@@ -814,8 +829,8 @@ To anchor the SQL results in an absolute frame of reference, the tables include 
 | + RFP | c3d5 | 335 | 212,065 | 14,315 | 7,870.2 |
 | + FFP | c3d5 | 330 | 3,647,133 | 100,753 | 14,613.7 |
 | + LMR | c3d5 | 330 | 3,800,686 | 99,543 | 15,155.1 |
-| **Quack-Mate JS (DFS Reference)** | **c3d5** | **335** | **6,225** | **305** | **94.9** |
-| **Stockfish 18 (Ceiling)** | c3d5 | 178 | 385 | 1 | 422.2 |
+| Quack-Mate JS (DFS Reference) | c3d5 | 335 | 6,225 | 305 | 94.9 |
+| Stockfish 18 (Ceiling) | c3d5 | 178 | 385 | 1 | 422.2 |
 
 ### Board 3: "KiwiPete" (Highly Tactical)
 <small><code>r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1</code></small>
@@ -835,8 +850,8 @@ To anchor the SQL results in an absolute frame of reference, the tables include 
 | + RFP | e2a6 | 170 | 468,312 | 16,762 | 20,440.6 |
 | + FFP | e2a6 | 170 | 403,228 | 16,334 | 3,053.6 |
 | + LMR | e2a6 | 170 | 412,643 | 16,661 | 2,950.3 |
-| **Quack-Mate JS (DFS Reference)** | **e2a6** | **375** | **9,269** | **511** | **99.7** |
-| **Stockfish 18 (Ceiling)** | e2a6 | -128 | 381 | 1 | 422.1 |
+| Quack-Mate JS (DFS Reference) | e2a6 | 375 | 9,269 | 511 | 99.7 |
+| Stockfish 18 (Ceiling) | e2a6 | -128 | 381 | 1 | 422.1 |
 
 ### Board 4: Endgame
 <small><code>8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1</code></small>
@@ -856,8 +871,8 @@ To anchor the SQL results in an absolute frame of reference, the tables include 
 | + RFP | b4f4 | 110 | 91,956 | 5,491 | 1,104.2 |
 | + FFP | b4f4 | 110 | 105,394 | 5,913 | 1,002.6 |
 | + LMR | b4f4 | 110 | 106,700 | 5,691 | 1,008.8 |
-| **Quack-Mate JS (DFS Reference)** | **b4f4** | **110** | **2,126** | **54** | **92.0** |
-| **Stockfish 18 (Ceiling)** | b4f4 | 97 | 246 | 1 | 422.2 |
+| Quack-Mate JS (DFS Reference) | b4f4 | 110 | 2,126 | 54 | 92.0 |
+| Stockfish 18 (Ceiling) | b4f4 | 97 | 246 | 1 | 422.2 |
 
 ### Analysing the Results
 
@@ -902,21 +917,21 @@ Aggressive pruning techniques — RFP, FFP, and LMR — are structural requireme
 
 In the Complex Mid-game (Board 2), static pruning (`RFP`) is phenomenally effective, slashing the node count from 1.6M down to just 212K and completing the search in 14 seconds. Yet, when forward pruning (`FFP` and `LMR`) are added on top, the node count unexpectedly spikes back up to 3.8M.
 
-This behaviour illustrates a concept known as "soft" search instability. Because the engine operates on a strict "Zero-Window" search (`[pvScore - 1, pvScore]`) during its batched evaluations, an aggressively reduced move that turns out to be tactically superior will fail high, breaking the narrow Alpha-Beta bounds. This forces the engine to discard the pruned batch and re-verify the branch at full depth. While this re-search mechanism causes localised spikes in node volume, it acts as a critical safety net: despite the aggressive SQL pruning, the engine correctly and consistently identifies powerful tactical sequences like the `c3d5` knight jump across all configurations, ensuring the tactical evaluation remains rock-solid.
+This behaviour illustrates a concept known as "soft" search instability. Because the engine operates on a strict "Zero-Window" search (`[pvScore - 1, pvScore]`) during its batched evaluations, an aggressively reduced move that turns out to be tactically superior will **fail high** — essentially "breaking" the narrow Alpha-Beta window we set. 
+
+Think of it like our house-shopping analogy: we *guessed* No other house would be better than €200,000, so we told our partner we were "just browsing" cheap options. When we suddenly find a hidden gem that is actually worth €220,000, it "fails high" against our guess. This forces the engine to admit its initial guess was wrong, discard the shallow results, and re-verify the branch at full depth. While this re-search mechanism causes localised spikes in node volume, it acts as a critical safety net: despite the aggressive SQL pruning, the engine correctly and consistently identifies powerful tactical sequences like the `c3d5` knight jump across all configurations, ensuring the tactical evaluation remains rock-solid.
+
 
 ## Some Database-Related Questions
 
 If you've spent any time tuning analytical databases, a few critical questions are likely screaming at you by now. *Are you actually using DuckDB at its best? Have you analysed your query plans? Have you profiled where the time goes? Can the queries be rewritten to trigger more efficient ones?*
 
-**Why DuckDB?**
-Why build this in DuckDB and not another SQL engine? Quack-Mate initially supported both DuckDB and MonetDB, both exceptionally fast analytical databases. However, supporting multiple engines required significant maintenance and maniacal care to ensure the most efficient path was chosen for each—every SQL engine comes with its own flavour of syntax, architectural choices, and performance quirks. Eventually, I decided to focus exclusively on DuckDB, primarily because of MonetDB’s lack of support for native unsigned 64-bit integers.
+Let's address the hard engineering realities of forcing an OLAP engine to do DFS search.
 
-While analytical giants like ClickHouse provide immense power (and native unsigned 64-bit integers), they typically operate as distinct server instances. Passing millions of chess board states back and forth over a network socket introduces crippling latency. PostgreSQL, while beloved, fundamentally lacks native unsigned 64-bit integers; forcing it to evaluate 128-bit extensions or mask signed `bigint` columns destroys query performance. DuckDB hitting the exact sweet spot: native `UBIGINT` bitwise mathematics executed entirely in-process within the same memory space as the orchestration loop.
-
-**Profiling: Where Does the Time Actually Go?**
+### Profiling: Where Does the Time Actually Go?
 When executing an `EXPLAIN ANALYSE` on the massive 1-ply expansion queries (which can exceed 500 lines of dynamically generated SQL), the profiling reveals exactly what you might expect for an engine that bridges scalars and relations: we are overwhelmingly Join-bound.
 
-Here is a summarised, time-annotated snippet from DuckDB's native `query_tree` profiler showing the execution hierarchy of a pseudo-legal move generation query, summing to its total pipeline execution context:
+Here is a summarised, time-annotated snippet from DuckDB's native `query_tree` profiler showing the execution hierarchy of a pseudo-legal move generation query:
 
 ```text
 ┌────────────────────────────────────────────────┐
@@ -926,7 +941,7 @@ Here is a summarised, time-annotated snippet from DuckDB's native `query_tree` p
 └────────────────────────────────────────────────┘
 ...
 ┌─────────────┴─────────────┐
-│         PROJECTION        │  <-- 3. Bitwise evaluations (capture/check flags)
+│         PROJECTION        │  <-- 3. Bitwise XOR shifts, Mask generation
 │    ────────────────────   │
 │         ~ 2% Time         │
 └─────────────┬─────────────┘
@@ -936,7 +951,7 @@ Here is a summarised, time-annotated snippet from DuckDB's native `query_tree` p
 │        ~ 40% Time         │
 └─────────────┬─────────────┘
 ┌─────────────┴─────────────┐
-│          HASH_JOIN        │  <-- 1. Explodes active turn with mobility
+│          HASH_JOIN        │  <-- 1. Exploding sets joining precomputed masks
 │    ────────────────────   │
 │         ~ 20% Time        │
 └─────────────┬─────────────┘
@@ -948,40 +963,68 @@ Here is a summarised, time-annotated snippet from DuckDB's native `query_tree` p
 │                           ││        ~ 20% Time         │
 └───────────────────────────┘└───────────────────────────┘
 ```
-This data tells a very compelling story. You might assume that computing dozens of chained `CASE WHEN` mathematical masks to figure out captures across thousands of rows (Step 3) would be the bottleneck. In reality, the `PROJECTION` and `FILTER` steps combined consume less than 10% of the total pipeline time. 
+This data tells a very compelling story. You might assume that computing dozens of chained `CASE WHEN` mathematical masks to figure out captures across thousands of rows (Step 3) would be the bottleneck. In reality, the raw bitwise math — shifting, XORing, and counting bits in the `PROJECTION` phase — is mathematically trivial for DuckDB. Because DuckDB operates on rows in tight vector chunks (standardly 2048 rows), it can execute the bitwise logic required to move a piece down the tree as a single SIMD instruction across all board states simultaneously. In pure scalar arithmetic, SQL is exceptionally efficient.
 
-The overwhelming majority of the time (~80%) goes into the `DELIM_JOIN` and `HASH_JOIN` operators. 
+The real bottleneck is the structural translation between vectors and relations.
 
-Crucially, **the real bottleneck is the structural translation between vectors and relations**. To compute legal moves, Quack-Mate uses massive `JOIN LATERAL` calls to extract discrete base positions from the compressed `UBIGINT` bitboard strings (handled via `RIGHT_DELIM_JOIN`). Furthermore, checking if castling squares are under attack requires multiple correlated `EXISTS` subqueries, which DuckDB resolves as `LEFT_DELIM_JOIN`.
+To compute legal moves, Quack-Mate uses explosive `JOIN LATERAL` calls to extract discrete base positions from the compressed `UBIGINT` bitboard strings (handled via `RIGHT_DELIM_JOIN`). To validate legality efficiently (checking backwards from the King to see if it is in check), we use correlated `EXISTS` subqueries, which DuckDB optimises as `LEFT_DELIM_JOIN`s. The physical costs of maintaining relationships between sets (the Joining) are far higher than the mathematical cost of calculating the vectors within those sets.
 
-Initially, checking castling paths required 12 separate `EXISTS` subqueries per board state, which was a massive drain. To solve this, I moved to **Consolidated Attack Detection**. By grouping square checks into `IN (s1, s2, s3)` filters and using bitwise masks within our `attacks_precomputed` lookups, we reduced the subquery overhead significantly. While these still resolve as `DELIM_JOINs` in our engine today (consuming ~40% of the pipeline as shown in the diagram), they represent a significantly more efficient way to handle DuckDB's relational-to-vector translation compared to independent per-square lookups. This also allows us to correctly populate the `is_check` flag in the search tree (which was previously an expensive runtime check) without significant overhead.
+Initially, checking castling paths required 12 separate `EXISTS` subqueries per board state, which was a massive drain. To solve this, I moved to **Consolidated Attack Detection**. By grouping square checks into `IN (s1, s2, s3)` filters and using bitwise masks within our `attacks_precomputed` lookups, we reduced the subquery overhead significantly. While these still resolve as `DELIM_JOINs` in our engine today (consuming ~40% of the pipeline as shown in the diagram), they represent a significantly more efficient way to handle DuckDB's relational-to-vector translation compared to independent per-square lookups.
 
-**Indexes and Data Access**
-DuckDB's optimiser is designed to convert joins into incredibly fast operators by building transient Hash Tables on the fly. However, because Quack-Mate evaluates millions of variations across discrete JS/SQL batches, we must guarantee immediate lookups where transient hash joins can't save us.
+### Indexes and the Performance Trade-Off
+DuckDB's optimiser is designed to convert joins into incredibly fast operators by building transient Hash Tables on the fly. However, a traditional indexing strategy is critical for specific, targeted lookups where a transient hash scan would be catastrophic.
 
-We explicitly instruct DuckDB to index our static piece arrays and cache tables:
+We explicitly instruct DuckDB to utilise B-Tree indexes on two critical areas:
 
 ```sql
 -- 1. Accelerating pseudo-move block generation
 CREATE INDEX idx_mobility_target ON mobility_precomputed(target_sq);
 CREATE INDEX idx_mobility_from_piece ON mobility_precomputed(piece, from_sq);
 
--- 2. Accelerating History Heuristic lookups
-CREATE INDEX idx_history ON history_moves(piece, to_sq);
-
--- 3. Accelerating Search Tree relational mapping
-CREATE INDEX idx_st_parent ON search_tree(parent_id);
-CREATE INDEX idx_st_depth ON search_tree(depth);
+-- 2. Accelerating Search Tree relational mapping
 CREATE UNIQUE INDEX idx_st_hash ON search_tree(board_hash);
 ```
-Without `idx_mobility_from_piece`, DuckDB would be forced to sequentially scan the entire 36,000-row `mobility_precomputed` table every time it needs to find where a Knight can jump. With the index, the query planner immediately routes the exploded `from_sq` and `piece` IDs into highly selective block lookups, massively cutting down the initial cartesian cross-product.
 
-**Are the Query Plans Optimal? Can they be Rewritten?**
+- **Cache Tables:** A unique index on `search_tree(board_hash)` implicitly supports fast lookups. This allows the move ordering logic to retrieve the previous best move via a highly-selective B-Tree lookup rather than scanning the entire history of the search.
+- **Move Generation Data:** An index on `mobility_precomputed(piece, from_sq)` is essential for acceptable performance during expansion. Without it, DuckDB would be forced to scan the 36,000 mobility mask variations for every piece found on the board. The index converts this multi-row lookup into a high-selectivity range scan.
+
+However, rigor requires acknowledging a major downside: index maintenance overhead. If a B-Tree index is actively maintained on transient tables (like tracking `parent_id` on the `search_tree`) during a massive expansion iteration, write performance will crater as the B-Tree is continuously restructured for millions of new rows. Our Javascript orchestrator optimises this by building essential temporary indexes (e.g., `CREATE INDEX IF NOT EXISTS idx_raw_moves_batch ON raw_moves(batch_id, is_processed)`) *only after* the initial bulk insertion of raw candidate moves is complete, ensuring write throughput remains high during the massive generation phase.
+
+### The Hidden Cost of ACID and Memory Spilling
+Traditional chess engines manage memory and state storage manually, using pre-allocated arrays and raw pointers. SQL databases use buffer pools and transaction managers. These mechanisms introduce two unique bottlenecks for Quack-Mate.
+
+1. **The MVCC Transaction Overhead:** Even though Quack-Mate runs entirely in-memory, DuckDB is still a fully ACID-compliant database. Every time the orchestrator executes a massive INSERT to expand the game tree, or a DELETE to clear the previous depth iteration, DuckDB must track these mutations using Multi-Version Concurrency Control (MVCC) and an in-memory Undo Buffer to guarantee transaction isolation. While a C++ engine can brutally overwrite a 64-bit integer in a fraction of a nanosecond, DuckDB must allocate and track relational row states. This transactional bookkeeping is a constant, unavoidable tax on pure SQL chess.
+
+2. **The Buffering and Spilling Dilemma:** The most dangerous bottleneck in SQL chess is DuckDB’s "Out-of-Core" memory management. DuckDB constantly monitors its RAM usage against a hard limit (defaulting to 80% of system RAM). When a massive, unpruned game tree at depth 5 exceeds this limit, traditional chess engines simply crash with an Out-of-Memory error. DuckDB, however, is designed to survive. To prevent a crash, it automatically creates a .tmp folder on your host machine and begins aggressively "spilling" overflowing intermediate vectors to disk.
+
+While this allows the analytical query to finish, performance drops off a cliff—from nanosecond RAM speeds to millisecond disk I/O speeds. A single sequential scan of a spilled temp file takes longer than generating thousands of chess moves in RAM. To maintain execution speed, the engine must actively avoid triggering this safeguard. This is the primary reason the Javascript orchestrator heavily restricts the Batch Size of sibling moves during PVS. By feeding the SQL engine strict, horizontal slices of the game tree, we guarantee that the resulting intermediate JOIN tables always fit comfortably within DuckDB's in-memory buffer pool, avoiding the disk-spilling penalty entirely.
+
+### Are the Query Plans Optimal? Can they be Rewritten?
 The query plans are as optimal as they can realistically be, but only because we mathematically forced the planner's hand. 
 The DuckDB query optimiser is exceptionally smart, but it was designed for standard business intelligence, not for backwards-checking pseudo-legal chess attacks in an adversarial game tree. Early versions of Quack-Mate relied heavily on `OR` clauses during move validation. This completely confused the query planner, causing it to fall back into devastatingly slow Nested-Loop Joins. 
 To trigger the optimal plan (where DuckDB builds the correct hash tables and streams the board states through them), the queries had to be carefully rewritten to explicitly separate pawn logic from sliding piece logic, utilising strict `UNION ALL` statements. This forces the engine to evaluate the bitboards in distinct, parallelised blocks, avoiding the optimiser's fallback behaviour.
 
-**Exploiting SQL's Inherent Advantages**
+### Why Not a Vertical Schema?
+If Batched PVS starves vectorization by generating short tables, why not normalise the board state? Instead of a "wide" schema with 12 bitboard columns per row, we could use a "vertical" schema with one single bitboard column and 12 rows per board state. This would multiply the row count by 12, theoretically feeding the columnar engine.
+
+While logically sound, the overhead of unpacking the data destroys the advantage:
+
+1. **The Context Problem:** Chess logic requires cross-piece context. To evaluate a White Knight's move, you simultaneously need the `White_Knights`, `All_White_Pieces`, and `All_Pieces` bitboards. In a wide schema, this is a fast, row-local horizontal projection. In a vertical schema, gathering this context requires complex self-joins or aggregations, crippling the already Join-bound engine.
+2. **Write-Volume Explosion:** When a piece moves, 11 bitboards remain identical. A wide schema requires inserting just 1 new row. A vertical schema forces you to copy and insert 12 new rows per board state, exploding the write-volume to temporary tables.
+3. **Persistent Vector Starvation:** Even with 12x the rows, a tight BPVS batch of ~150 child boards only yields 1,800 rows. This still fails to fill a single 2,048-row DuckDB vector chunk, let alone distribute across multiple CPU cores.
+
+Ultimately, keeping the board physically "wide" so the C++ vector engine can execute simultaneous, row-local bitwise math is the only way SQL chess survives.
+
+### Tuning the Vector Size?
+If DuckDB's default 2,048-row vector chunk is too large for our tight BPVS batches, could we simply reduce the vector size configuration to, say, 64 rows, to finally distribute the workload across multiple threads?
+
+Technically, yes—but practically, it is a losing trade. You might wonder: isn't 2048 rows still "tiny" in the grand scheme of a database? It is tiny relative to a table, but it is mathematically perfect for the CPU. A vector of 2048 64-bit integers takes exactly 16 KB of memory. This fits perfectly inside a modern CPU's ultra-fast L1 cache (typically 32 KB to 64 KB). DuckDB uses 2048 because it is the exact "sweet spot" that keeps the CPU's execution units fully saturated without ever triggering a slow RAM fetch (cache miss).
+
+The concept of vectorization exists specifically to amortise the overhead of interpretation, function dispatch, and lock contention. When you reduce the vector size to 64, you massively underutilise the L1 cache, and the ratio of "doing actual bitwise math" to "managing thread state" flips in the wrong direction. 
+
+If we tell DuckDB to spawn 16 threads and hand each thread a microscopic chunk of 64 rows, those threads spend their time acquiring locks, fetching the chunk from the global queue, waiting at synchronization barriers, and writing back to shared memory. The raw execution time of performing SIMD bitwise XOR on 64 rows is practically zero compared to the colossal orchestration cost of the threads talking to each other. By deliberately breaking the perfect 2048-row cache-aligned chunk into tiny pieces to force parallelization, you introduce so much lock contention that the engine runs significantly slower than a single sequential thread processing the entire 150-row batch uninterrupted.
+
+### Exploiting SQL's Inherent Advantages
 The SQL approach absolutely imposes massive limitations (like the severe overhead of state buffering compared to classical engines). However, it does possess a few unique, native advantages over imperative languages, and Quack-Mate exploits them ruthlessly:
 *   **Vectorised Execution without JIT Overhead:** By living entirely inside DuckDB's vectorised query engine, our complex bitwise evaluation pipelines (`XOR` shifts, popcounts, and mask evaluations) are natively executed in tight C++ vectors on the host machine.
 *   **Dynamic Pruning Literals (Vs. Prepared Statements):** You might ask why we aren't using Prepared Statements to heavily reduce DuckDB's query planner overhead. The answer is pruning efficiency. Alpha and Beta thresholds update continuously between batches. By continuously injecting these updated thresholds as hardcoded literals straight into the SQL generation string, DuckDB's optimiser treats them as fixed constants rather than opaque parameterised variables. This allows the planner to aggressively push the pruning filters down to the lowest execution nodes, stripping useless variations via table scans before they ever hit the heavy hash-joins.
@@ -989,6 +1032,6 @@ The SQL approach absolutely imposes massive limitations (like the severe overhea
 
 ## A Playable Conclusion
 
-The final result speaks for itself. Though admittedly much slower than established engines written in C++ or Rust, the combination of DuckDB and the BPVS strategies makes Quack-Mate genuinely playable up to a depth of 5. For an engine written essentially entirely in SQL, dragging an analytical database kicking and screaming into the world of adversarial game trees, I consider that a tremendous achievement. 
+Though admittedly much slower than established engines written in C++ or Rust, the combination of DuckDB and the BPVS strategies makes Quack-Mate genuinely playable up to a depth of 5. For an engine written essentially entirely in SQL, dragging an analytical database kicking and screaming into the world of adversarial game trees, that's not bad at all. 
 
 
