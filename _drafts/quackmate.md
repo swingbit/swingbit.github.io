@@ -721,7 +721,7 @@ As the game unfolds, the Javascript orchestrator furiously fires perfectly bound
 
 When I first envisioned Quack-Mate, my grandest hope was built on a naive assumption: if I represent move generation as a massive set-based `JOIN` operation, a modern analytical engine like DuckDB would automatically scale it across all available CPU cores. I imagined throwing 16 or 32 threads at the engine and watching it effortlessly obliterate the combinatorial explosion.
 
-The reality was a harsh lesson in the fundamental differences between OLAP (Online Analytical Processing) workloads and adversarial game trees. Not only did adding cores fail to speed up Quack-Mate, but in many configurations, *more threads actually hurt performance*. This paradox breaks down into three core issues:
+The reality was a harsh lesson in the fundamental differences between OLAP workloads and adversarial game trees. Not only did adding cores fail to speed up Quack-Mate, but in many configurations, *more threads actually hurt performance*. This paradox breaks down into three core issues:
 
 **1. The Vectorisation Threshold & Synchronisation Barriers**
 DuckDB is a vectorised database; it processes data in strict chunks (typically 2,048 rows at a time) and assigns these chunks to threads in its pool. At search depths of 1 or 2, there simply aren't enough valid chess moves to fill more than a single vector chunk. Even at depth 3 (the 8,902 leaf nodes of the starting position), the engine only generates enough valid rows to fill 4 or 5 chunks. 
@@ -941,18 +941,18 @@ Here is a summarised, time-annotated snippet from DuckDB's native `query_tree` p
 └────────────────────────────────────────────────┘
 ...
 ┌─────────────┴─────────────┐
-│         PROJECTION        │  <-- 3. Bitwise XOR shifts, Mask generation
-│    ────────────────────   │
+│         PROJECTION        │  <-- 3. Bitwise XOR shifts,
+│    ────────────────────   │         Mask generation
 │         ~ 2% Time         │
 └─────────────┬─────────────┘
 ┌─────────────┴─────────────┐
-│      LEFT_DELIM_JOIN      │  <-- 2. Attack Detection (EXISTS subqueries)
-│    ────────────────────   │
+│      LEFT_DELIM_JOIN      │  <-- 2. Attack Detection
+│    ────────────────────   │         (EXISTS subqueries)
 │        ~ 40% Time         │
 └─────────────┬─────────────┘
 ┌─────────────┴─────────────┐
-│          HASH_JOIN        │  <-- 1. Exploding sets joining precomputed masks
-│    ────────────────────   │
+│          HASH_JOIN        │  <-- 1. Exploding sets joining
+│    ────────────────────   │         precomputed masks
 │         ~ 20% Time        │
 └─────────────┬─────────────┘
 ┌─────────────┴─────────────┐┌─────────────┴─────────────┐
@@ -988,7 +988,7 @@ CREATE UNIQUE INDEX idx_st_hash ON search_tree(board_hash);
 - **Cache Tables:** A unique index on `search_tree(board_hash)` implicitly supports fast lookups. This allows the move ordering logic to retrieve the previous best move via a highly-selective B-Tree lookup rather than scanning the entire history of the search.
 - **Move Generation Data:** An index on `mobility_precomputed(piece, from_sq)` is essential for acceptable performance during expansion. Without it, DuckDB would be forced to scan the 36,000 mobility mask variations for every piece found on the board. The index converts this multi-row lookup into a high-selectivity range scan.
 
-However, rigor requires acknowledging a major downside: index maintenance overhead. If a B-Tree index is actively maintained on transient tables (like tracking `parent_id` on the `search_tree`) during a massive expansion iteration, write performance will crater as the B-Tree is continuously restructured for millions of new rows. Our Javascript orchestrator optimises this by building essential temporary indexes (e.g., `CREATE INDEX IF NOT EXISTS idx_raw_moves_batch ON raw_moves(batch_id, is_processed)`) *only after* the initial bulk insertion of raw candidate moves is complete, ensuring write throughput remains high during the massive generation phase.
+However, there is a potentially major downside: index maintenance overhead. If a B-Tree index is actively maintained on transient tables (like tracking `parent_id` on the `search_tree`) during a massive expansion iteration, write performance will crater as the B-Tree is continuously restructured for millions of new rows. The Javascript orchestrator optimises this by building essential temporary indexes (e.g., `CREATE INDEX IF NOT EXISTS idx_raw_moves_batch ON raw_moves(batch_id, is_processed)`) *only after* the initial bulk insertion of raw candidate moves is complete, ensuring write throughput remains high during the massive generation phase.
 
 ### The Hidden Cost of ACID and Memory Spilling
 Traditional chess engines manage memory and state storage manually, using pre-allocated arrays and raw pointers. SQL databases use buffer pools and transaction managers. These mechanisms introduce two unique bottlenecks for Quack-Mate.
@@ -1032,6 +1032,27 @@ The SQL approach absolutely imposes massive limitations (like the severe overhea
 
 ## A Playable Conclusion
 
-Though admittedly much slower than established engines written in C++ or Rust, the combination of DuckDB and the BPVS strategies makes Quack-Mate genuinely playable up to a depth of 5. For an engine written essentially entirely in SQL, dragging an analytical database kicking and screaming into the world of adversarial game trees, that's not bad at all. 
+So, is a pure SQL chess engine feasible? The answer is a resounding "yes, but with conditions." 
+
+Quack-Mate demonstrates that while you *can* force a relational database to play a game of adversarial search, the victory comes only after a series of heavy engineering compromises. To make SQL chess work, we had to abandon the memory-efficient simplicity of traditional Depth-First Search (DFS) and invent a hybrid architecture — **Batched Principal Variation Search (BPVS)** — that balances SQL's thirst for wide parallelisation against the strict pruning required to survive combinatorial explosion. 
+
+### The Engine's Balance Sheet
+
+The project revealed a fascinating tension between two very different computing paradigms:
+
+*   **The Positive Findings:** Modern OLAP engines like DuckDB are mathematically terrifying. Forcing the engine to execute simultaneous bitwise XORs and Piece-Square Table lookups across a vector of 2,048 board states is virtually "free" in CPU terms. By pushing these pruning thresholds into the generated SQL as hardcoded literals, we successfully offloaded the heaviest filtering to the database's own query optimiser, transforming complex game logic into efficient table scans.
+*   **The Negative Realities:** We are ultimately fighting the "Join Tax" and the "Transactional Tax." A C++ engine can move a piece by mutating a single 64-bit integer in a register. A SQL engine, no matter how fast, must still manage Row-IDs, MVCC undo buffers, and relational joins. While the math is fast, the structural bookkeeping required to maintain an immutable game tree in a relational schema is a massive, unavoidable overhead.
+
+### Techniques and Trade-offs
+
+This experiment confirmed that some classical chess techniques translate beautifully to SQL, while others remain fundamentally incompatible:
+*   **Highly Compatible:** Bitboards (natively parallel via UBIGINT), static Piece-Square Tables (relational JOINs), and Move Ordering (sorting of result sets).
+*   **Incompatible:** Complex search heuristics like NNUE (which require non-relational procedural logic) and extremely deep DFS searches (which would necessitate either millions of independent queries or one monolithic query that causes the database to spill its RAM to disk).
+
+### Final Thoughts
+
+Though admittedly much slower than established engines written in C++ or Rust, the combination of DuckDB and the BPVS strategies makes Quack-Mate genuinely playable up to a depth of 5. For an engine written essentially entirely in SQL, dragging an analytical database kicking and screaming into the world of adversarial game trees is a tremendous achievement.
+
+Essentially, this project confirmed the somewhat obvious conclusion: a relational database will never match the performance of a dedicated, imperative engine for a task it was never meant to perform. However, that was never the point. The value of Quack-Mate lies in the exploration itself—demonstrating that with enough creative orchestration, the boundaries of "what SQL can do" are far wider, more flexible, and more interesting than we often imagine.
 
 
