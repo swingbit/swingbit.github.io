@@ -183,15 +183,15 @@ bool is_legal(Board board, Move move) {
 
 **The SQL Way:** Interestingly, Quack-Mate's approach is actually closer to the older, slower imperative method. Calculating absolute pin masks dynamically in pure SQL is agonisingly inefficient. Even though DuckDB exposes powerful native bitwise functions (like `bit_count()` for population counts), building a pin mask relationally requires projecting attack rays from every enemy slider towards our King, masking those rays against our own pieces, computing the `bit_count()` to verify if exactly *one* of our pieces sits on that ray, and then feeding those results into a heavy `JOIN` against the pseudo-move pool to restrict the mobility of the pinned pieces.
 
-Instead, DuckDB embraces the brute force of set theory. We skip the messy pre-validation entirely and simply *apply* all pseudo-legal moves (via our ultra-fast bitwise XORs) to spawn a massive CTE of `expanded_states`, and then we filter the illegal boards out.
-
-<img src="/assets/images/quackmate_move_validation_rays.png" alt="Diagram showing ray tracing from the King's perspective vs attackers" width="450" style="display: block; margin: 0 auto;"/>
+Instead, Quack-Mate embraces the brute force of set theory. We skip the messy pre-validation entirely and simply *apply* all pseudo-legal moves (via our ultra-fast bitwise XORs) to spawn a massive CTE of `expanded_states`, and then we filter the illegal boards out.
 
 To understand why this is feasible in SQL, we have to look at how imperative engines manage memory. To save space and allocation overhead, classical engines typically maintain only a *single* chessboard object in memory. To test a move, the engine mutates that singular state, evaluates it, and then explicitly "un-makes" or takes back the move to restore the board for the next iteration of its `for` loop. Copying the full board object endlessly would crush performance.
 
 SQL flips this paradigm on its head. Generating massive sets of independent, immutable rows is what the relational engine does best. By executing our XOR logic, DuckDB spawns millions of entirely distinct rows representing the newly applied board states. Because each moved piece exists in its own separate universe, we don't have to sequentially "un-make" anything—we just effortlessly drop the illegal rows from the final result set.
 
 The mechanism for identifying and dropping those illegal rows is surprisingly elegant. To check legality concurrently across millions of these distinct states without the need for complex pin-masks, we perform a "backwards" attack check. In practice, this means we use the enemy pieces' own movement rules in reverse, starting from the King. We look at the King's new square and execute an `EXISTS` subquery finding out if, for example, a Knight placed on the King's square would hit any actual enemy Knights (because if our hypothetical Knight can reach them, their real Knight can reach our King!).
+
+<img src="/assets/images/quackmate_move_validation_rays.png" alt="Diagram showing ray tracing from the King's perspective vs attackers" width="450" style="display: block; margin: 0 auto;"/>
 
 Why do it backwards? Performance. Remember that the locations of the enemy pieces are compacted into singular 64-bit integers. To perform a "forward" check, the SQL engine would need to know their exact squares. To get those squares, the database must painfully "decompress" the bitboards by exploding them into distinct rows—generating up to 16 intermediate rows per board state. The engine would then have to join every single one of those rows against the precomputed tables to calculate their specific attack masks, and finally verify if our King's square falls within any of them.
 
