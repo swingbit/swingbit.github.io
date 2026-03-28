@@ -486,34 +486,52 @@ This is why PVS is a structural necessity for SQL. By evaluating the remaining s
 
 ### Transposition Tables (TT)
 
-In chess, many different sequences of moves can lead to the exact same board position (a transposition). Without memory, an engine will stupidly re-evaluate the same position millions of times. A Transposition Table (TT) solves this by acting as a global cache. In classical engines, a TT serves two distinct roles:
+In chess, many different sequences of moves can lead to the exact same board position (a transposition). Without memory, an engine will stupidly re-evaluate the same position millions of times. A Transposition Table (TT) solves this by acting as a global cache. 
+
+To identify these repeating positions, Quack-Mate (like most modern engines) utilises a **Zobrist Hash**, a brilliant application of bitwise math. A random, static 64-bit number is pre-generated for every possible piece type appearing on every possible square (yielding an array of 12 piece types × 64 squares = 768 random numbers, plus a handful of extras to track castling rights and turn order). To calculate the hash for any board state, the engine simply takes the random numbers corresponding to the pieces currently on the board, the turn order, and the castling rights, and XORs (`^`) them all together. *(Note: Quack-Mate currently omits the En Passant rule entirely. While essential for a competitive engine, implementing the dynamic state tracking for en passant in pure SQL added significant complexity for a rule that is relatively rare in casual play. By omitting it, we keep the schema and move generation logic significantly more streamlined).* Because `A ^ A = 0`, engines can update this hash incredibly fast incrementally: if a Knight moves from g1 to f3, the engine just takes the old board hash, XORs it by `random_White_Knight_g1` to remove the piece, and then XORs by `random_White_Knight_f3` to place it.
+
+**The Currency of the Cache: Remaining Depth**
+Before discussing how engines store these hashes, it is critical to understand *what* they are actually storing. A Transposition Table does not care how many moves it took to *reach* a board position; it only cares about the quality of the evaluation, which is dictated by how many moves *ahead* the engine looked. 
+
+This is tracked as `remaining_depth`. If an engine is running a depth 5 search (`MAX_DEPTH = 5`), and it evaluates a board position that is 2 moves down the tree (`ply = 2`), it calculated that score by looking 3 moves into the future. It stores `3` in the TT as the depth. The golden rule of Transposition Tables is that an engine will *never* let a shallow, low-quality evaluation overwrite a deep, high-quality evaluation in the cache.
+
+With these evaluations securely cached, classical engines read from the TT to perform two distinct roles:
 1. **Total Branch Pruning**: If a cached evaluation is found with sufficient depth, the engine instantly returns the score (requiring strict tracking of Alpha/Beta bound types—Exact, Upper, or Lower).
 2. **Move Ordering**: If the cached depth is insufficient, the engine extracts the previously saved `best_move` and searches it first, massively increasing the chance of an early Alpha-Beta cutoff.
 
-However, **Quack-Mate strictly uses the TT only for Move Ordering**. Implementing Total Branch Pruning via SQL proved completely unviable. Verifying Alpha/Beta bound types across millions of rows during the fast expansion CTEs introduced severe relational overhead that dwarfed any performance gained from skipping branches. By discarding branch pruning, we don't need to store complex bound types. We simply use a basic `UPSERT` to cache the best move found at shallow depths, allowing the query planner to effortlessly bubble that move to the top of the queue during deeper iterations.
+Where engines diverge is how they *store* and enforce this rule.
 
-To identify repeating positions, Quack-Mate (like most modern engines) utilises a **Zobrist Hash**, a brilliant application of bitwise math. A random, static 64-bit number is pre-generated for every possible piece type appearing on every possible square (yielding an array of 12 piece types × 64 squares = 768 random numbers, plus a handful of extras to track castling rights and turn order). To calculate the hash for any board state, the engine simply takes the random numbers corresponding to the pieces currently on the board, the turn order, and the castling rights, and XORs (`^`) them all together. *(Note: Quack-Mate currently omits the En Passant rule entirely. While essential for a competitive engine, implementing the dynamic state tracking for en passant in pure SQL added significant complexity for a rule that is relatively rare in casual play. By omitting it, we keep the schema and move generation logic significantly more streamlined).* Because `A ^ A = 0`, engines can update this hash incredibly fast incrementally: if a Knight moves from g1 to f3, the engine just takes the old board hash, XORs it by `Random(White Knight on g1)` to remove the piece, and then XORs by `Random(White Knight on f3)` to place it.
-
-Where engines diverge is how they *store* and look up these hashes.
-
-**The Imperative Way:** This blazing-fast 64-bit Zobrist Hash is used as the primary key in a massive, painstakingly pre-allocated memory map (the Transposition Table) living in raw RAM, which must be carefully protected by complex read/write locks when the engine is using multiple threads.
+**The Imperative Way:** This blazing-fast 64-bit Zobrist Hash is used as the primary key in a massive, painstakingly pre-allocated memory map living in raw RAM, which must be carefully protected by complex read/write locks when the engine is using multiple threads. 
 
 ```cpp
+// How many moves ahead do we still need to look?
+int remaining_depth = limit - ply; 
+
 // Probe the TT before searching
 TTEntry entry = transposition_table[zobrist_hash];
-// Did we search this position at least as deep as we are now?
-if (entry.is_valid && entry.limit >= limit) {
+
+// Did we previously search this position at least as far ahead as we need to now?
+if (entry.is_valid && entry.remaining_depth >= remaining_depth) {
     return entry.score; // Cache hit! Skip the search.
 }
+
 // ... after searching, lock and save back to the TT
-transposition_table[zobrist_hash] = {limit, score, best_move};
+transposition_table[zobrist_hash] = {remaining_depth, score, best_move};
 ```
 
-**The SQL Way:** In SQL, memory management and hash-mapping are abstracted away into a simple database table. However, while the *syntax* for reading and updating a Transposition Table is concise, the *performance cost* is significantly higher than in an imperative engine.
+**The SQL Way (And Why Quack-Mate Only Uses Move Ordering):**
+In SQL, memory management and hash-mapping are abstracted away into a simple database table. However, while traditional engines use this table for both Pruning and Move Ordering, **Quack-Mate strictly uses it only for Move Ordering.**
 
-Reading from the TT requires an explicit `LEFT JOIN` on every move generation query. While DuckDB's join optimiser is fast, doing this for millions of potential branches during a deep search introduces measurable relational overhead. This is why Quack-Mate restricted the TT to **Move Ordering** only. By only reading the "best move" from the TT once at the start of a branch (to guide our PVS batches), we get the structural benefit of strong ordering without the compute penalty of verifying exact Alpha/Beta bounds for every single node.
+I did attempt to implement Total Branch Pruning (where the engine skips calculating a branch entirely if the TT holds a verified Alpha/Beta bound for it). In a traditional engine, this provides massive performance gains. In Quack-Mate, it completely flatlined, occasionally even slowing the engine down. 
 
-Updating the TT remains a purely set-based operation. After each depth iteration, the orchestrator fires a bulk `UPSERT` to cache the best moves found during that pass. This allows the next iteration to "see" the best paths from the previous search and prioritise them immediately:
+This failed experiment exposed the brutal reality of porting microscopic DFS optimizations into a relational database. It comes down to universal chess math colliding with SQL execution overhead:
+
+1. **The "Cost of Asking" & Depth Starvation:** In traditional DFS engines, the math of `remaining_depth` applies exactly the same way. When an engine finishes depth 4 and immediately begins depth 5, it hits the exact same root children, but now demands a `remaining_depth` of 4 to safely prune. Because the cached depth from the previous pass is only 3, the TT score is mathematically forbidden from replacing the deeper search. Inter-iteration pruning fails. However, probing the DFS implementation of a TT (typically a hash association table) is a nanosecond memory lookup. If the math says "No, you can't prune," the engine loses zero time, grabs the best move for ordering, and moves on.
+2. **The BFS / Batch Penalty:** In Quack-Mate's Breadth-First Layer-Expansion, asking that exact same question requires executing an explicit `LEFT JOIN` between our `frontier_nodes` and the `transposition_table` to apply the complex exact/upper/lower bound math. We are paying a massive relational tax to ask the database a question, only to have the universal math of `remaining_depth` scream "No!" 99% of the time. The massive overhead of executing this JOIN costs significantly more time than the handful of intra-iteration nodes it manages to save (except in highly chaotic, branching positions like the "KiwiPete" benchmark).
+
+Ultimately, this experiment proved that in a set-based SQL architecture, you cannot port microscopic, row-by-row DFS optimizations. You must accept the TT strictly as a Move Ordering tool (where a single read at the start of a branch guides the PVS batches), and leave the actual pruning to the raw, brute-force throughput of the database engine.
+
+Because of this limitation, updating the TT in Quack-Mate is a purely set-based operation focused entirely on caching these best paths. After each depth iteration, the orchestrator fires a bulk `UPSERT` to save the best moves found during that pass. The golden rule of `remaining_depth` is enforced natively via a strict `WHERE` filter on the `UPDATE` conflict:
 
 ```sql
 INSERT INTO transposition_table (board_hash, static_eval, depth, best_move_from, best_move_to)
@@ -587,9 +605,14 @@ history_table[moving_piece][to_square] += importance * importance;
 
 ```sql
 INSERT INTO history_moves (piece, to_sq, score)
-SELECT piece, to_sq, remaining_depth * remaining_depth
-FROM search_tree
-WHERE is_cutoff = 1
+SELECT 
+    m.piece, 
+    m.to_sq, 
+    (MAX_DEPTH - s.depth) * (MAX_DEPTH - s.depth) as importance
+FROM search_tree s
+-- Find the specific child move that yielded the parent's final score
+JOIN search_tree m ON (m.parent_id = s.id AND m.minimax_eval = s.minimax_eval)
+WHERE s.depth = CURRENT_SEARCH_DEPTH
 ON CONFLICT (piece, to_sq) DO UPDATE SET score = history_moves.score + EXCLUDED.score;
 ```
 
