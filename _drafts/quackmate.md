@@ -549,17 +549,23 @@ We need a compromise. We split the search into two distinct phases:
 1.  **The Principal Variation (PV):** We search only the single most promising move (`rank = 1`) representing the best-guess path for every parent. We search this relatively tiny set of moves at full depth with a full-window to quickly establish strong `alpha` and `beta` thresholds.
 2.  **The Rest:** We search all remaining alternate moves. To make this efficient in SQL without losing pruning granularity, we chunk these moves into horizontally sliced **Batches**.
 
-Choosing the right **Batch Size** for these moves is the central balancing act of the engine. A large batch (e.g., 256) maximises DuckDB's primary strength—vectorised parallelisation. However, a small batch maximises the engine's tactical intelligence by letting the orchestrator "pause" more often to update its pruning thresholds. 
+Choosing the right **Batch Size** for these alternate moves is a balancing act. A large batch leverages DuckDB's bulk processing power, but a small batch lets the orchestrator "pause" more often to update pruning thresholds (meaning we can skip bad moves sooner).
 
-I ultimately chose an extremely tight **Batch Size of 4** as a deliberate architectural compromise to handle the **"Fail High"** condition. 
+To get the best of both worlds, Quack-Mate uses **Progressive Batching**, mapped exactly to our move-ordering heuristics:
+*   **Batch 0:** 1 move (The single best PV or Hash move)
+*   **Batch 1:** 3 moves (High-priority tactical strikes like captures and Killer Moves)
+*   **Batch 2:** 8 moves (The best remaining positional "quiet" moves)
 
-In a PVS search, we assume all sibling moves in a batch are worse than our current best (the PV). To prove this quickly, we search them at a reduced depth with a "zero-window". If a move's score surprisingly exceeds our Alpha threshold, it has **"failed high"**—proving our assumption was wrong and that the move is potentially a new best move. 
+If the engine hasn't found an alpha-beta cutoff by move 12, the move ordering has likely failed, or we are at a node where we are forced to search everything anyway. This is where we stop trickling and open the floodgates:
+*   **Batch 3+:** All remaining moves chunked into sizes of **64**.
 
-When this happens, the Javascript orchestrator discards the shallow results and forces DuckDB to re-search that specific batch at full depth. While a larger batch would be "faster" per-query, it makes the penalty for a single fail-high move astronomically expensive: the engine would be forced to re-search hundreds of sibling moves at full depth instead of just three. In a sparse tree, the benefit of tighter pruning granularity far outweighs the raw throughput of larger SQL vectors.
+In a PVS search, we assume all sibling moves in a batch are worse than our current best. To prove this quickly, we search them at a reduced depth with a "zero-window". If a move's score surprisingly exceeds our Alpha threshold, it has **"failed high"**—proving our assumption was wrong.
+
+When this happens, the Javascript orchestrator discards the shallow results and forces DuckDB to re-search that specific batch at full depth. With Progressive Batching, we evaluate the top moves in tiny batches (1, 3, 8) to get cheap cutoffs with a minimal re-search penalty if we fail high. If no cutoff is found after that, we know we probably have to search the rest anyway. Because an average chess position rarely exceeds 40-50 legal moves, a batch size of 64 guarantees that the database will evaluate 100% of the remaining "garbage" moves in one single, massive query, perfectly maxing out SQL's bulk processing efficiency.
 
 This creates a brilliant "Hybrid" search: Depth-First for the macro-tree (stepping ply-by-ply via the orchestrator), but Breadth-First for the micro-tree (evaluating batches of moves as sets).
 
-You might be wondering: *Could we have just used simple Alpha-Beta mapped to these batches, instead of jumping to a more advanced variant like PVS?* We could, but standard Alpha-Beta is fundamentally fluid—the `alpha` threshold updates continuously as sibling moves are evaluated. If a batch of 256 moves was evaluated simultaneously using standard Alpha-Beta, the 2nd move might improve `alpha`, meaning the 3rd move *should* have been instantly pruned. Because SQL evaluates the entire batch at once, we would waste massive compute cycles expanding the 3rd move before the JavaScript loop could register the new threshold. 
+You might be wondering: *Could we have just used simple Alpha-Beta mapped to these batches, instead of jumping to a more advanced variant like PVS?* We could, but standard Alpha-Beta is fundamentally fluid—the `alpha` threshold updates continuously as sibling moves are evaluated. If a batch of 8 moves was evaluated simultaneously using standard Alpha-Beta, the 2nd move might improve `alpha`, meaning the 3rd move *should* have been instantly pruned. Because SQL evaluates the entire batch at once, we would waste massive compute cycles expanding all subsequent moves before the JavaScript loop could register the new threshold. 
 
 This is why PVS is a structural necessity for SQL. By evaluating the remaining sibling moves under the assumption that they will strictly *fail* against a fixed, identical boundary (the zero-window), PVS creates a perfectly static expectation. This allows DuckDB to aggressively verify thousands of rows in bulk without needing to coordinate threshold updates mid-query.
 
@@ -912,11 +918,11 @@ Even the simplest BPVS configuration (which is just Iterative Deepening without 
 **3. The Alpha-Beta Sequential Bottleneck**
 To make depth 4 and 5 actually reachable without crashing the database, I had to abandon the pure recursive approach for **BPVS**. This strategy relies heavily on Alpha-Beta pruning, which is inherently *sequential*. To structurally prune terrible branches, the engine must plunge *Depth-First* down the most promising paths to quickly establish an Alpha/Beta threshold score.
 
-To mimic this in SQL, the BPVS orchestrator deliberately shards "sibling moves" into extremely tight batches (exactly 4 moves at a time). We evaluate a batch, update the pruning threshold, and use that threshold to brutally discard the millions of useless descendants lurking in the *next* batch. 
+To mimic this in SQL, the BPVS orchestrator deliberately shards "sibling moves" into Progressive Batches. We evaluate a tiny batch (like the single PV move, or the top 3 tactical moves), update the pruning threshold, and use that threshold to brutally discard the millions of useless descendants lurking in the *next* batch. 
 
-This creates a severe scaling bottleneck. Because a batch of only 4 parent moves generating their immediate descendants in a single ply will only spawn roughly 120 to 150 new board states, the resulting workload is far too small to fill even a single DuckDB vector chunk (which standardly requires 2,048 rows). Consequently, the engine is effectively single-threaded during these expansion queries. Testing confirms this: while adding a second thread provides a minor boost by handling background house-keeping, pumping in 8 or 16 threads is purely counter-productive. The system spends significantly more time on thread synchronisation and barrier management than it does actually evaluating the bitboards. 
+This creates a severe scaling bottleneck. Because a small batch generating immediate descendants in a single ply might only spawn a few hundred new board states across the frontier, the resulting workload is often too small to fill even a single DuckDB vector chunk (which standardly requires 2,048 rows). Consequently, the engine is effectively single-threaded during these targeted expansion queries. Testing confirms this: while adding a second thread provides a minor boost by handling background house-keeping, pumping in 8 or 16 threads is purely counter-productive. The system spends significantly more time on thread synchronisation and barrier management than it does actually evaluating the bitboards. 
 
-You might wonder why we don't simply increase the batch size to, say, 1,000 moves to finally saturate those threads. The reason returns to the pruning trade-off: if you increase the batch size, you lose the ability to "pause" and update your Alpha bound. You end up using 16 threads to violently calculate 990 garbage moves that a single-threaded engine, with its tighter feedback loop, would have pruned after just the 10th move. 
+You might wonder why we don't simply force the database to process thousands of moves at once to finally saturate those threads. Since a chess position rarely has more than 40-50 legal moves, simply increasing the horizontal batch size won't work—the moves literally don't exist. The only way to generate thousands of rows for a single parent is to look multiple *plies* ahead simultaneously (e.g., generating all depth 2 children in one query). But this returns us to the pruning trade-off: if you generate deeper moves without pausing to update your Alpha bound between them, you lose the ability to prune. You end up using 16 threads to violently calculate thousands of garbage positions that a single-threaded engine, with a tighter feedback loop, would have skipped entirely. 
 
 As a fun aside, initially forcing DuckDB to run multi-threaded BPVS natively ballooned its RAM footprint and crashed the browser. By default, DuckDB guarantees that output rows are returned in the exact order they were inserted. This means that if Thread 3 finishes calculating its chunk of the game tree faster than Thread 2, it *cannot* output the rows yet—it must stubbornly buffer them in memory until Thread 2 catches up. In a WebAssembly browser environment strictly constrained to a 4GB memory limit, this chaotic intermediate buffering overhead reliably causes the engine to suffer an Out-of-Memory crash when using exactly 3 threads (where the chunk distribution happens to mismatch badly) at depth 6. You must explicitly configure the database with `PRAGMA preserve_insertion_order=false;` to allow the threads to dump their arrays instantly!
 
@@ -934,7 +940,7 @@ Quack-Mate cannot replicate Lazy SMP because DuckDB (like most analytical databa
 
 ## Benchmarking the SQL Optimisations
 
-To truly understand how Quack-Mate performs, we need to look at the numbers. While the browser-based WebAssembly implementation is constrained to a strict 4GB memory limit, I wanted to capture the true absolute ceiling of the SQL architecture. Therefore, the following benchmarks were intentionally executed outside the browser using a native Node.js DuckDB 1.4.2 instance on an Intel i9-12900T with 64GB of RAM. 
+To truly understand how Quack-Mate performs, we need to look at the numbers. While the browser-based WebAssembly implementation is constrained to a strict 4GB memory limit, I wanted to capture the true absolute ceiling of the SQL architecture. Therefore, the following benchmarks were intentionally executed outside the browser using a native Node.js DuckDB 1.4.4 instance on an Intel i9-12900T with 64GB of RAM. 
 
 I ran the engine at **Depth 5** on a single thread across four positions selected from the well-known "Perft" suites, which are standard testing benchmarks widely used by the computer chess community to validate move generation and engine performance. They include the standard start position, the highly tactical "KiwiPete", a standard endgame, and a complex mid-game. 
 
@@ -967,17 +973,17 @@ To anchor the SQL results in an absolute frame of reference, the tables include 
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | d2d4 | 110 | 5,071,234 | 186,450 | 49,607.0 |
-| ID (Exhaustive) | d2d4 | 110 | 5,287,598 | 80,555 | 48,755.1 |
-| BPVS<br>(ID + AB + LMP + Batches) | e2e4 | 110 | 834,440 | 19,693 | 12,406.1 |
-| + MVVLVA | e2e4 | 110 | 834,440 | 18,718 | 3,963.9 |
-| + TT | d2d4 | 110 | 860,024 | 20,468 | 3,998.3 |
-| + PST | d2d4 | 100 | 761,339 | 16,201 | 3,998.3 |
-| + Killers | e2e4 | 110 | 761,278 | 16,105 | 3,710.4 |
-| + History | e2e4 | 110 | 761,273 | 16,122 | 3,758.2 |
-| + RFP | d2d4 | 100 | 804,509 | 18,614 | 3,758.2 |
-| + FFP | e2e4 | 110 | 283,934 | 9,754 | 3,344.5 |
-| + LMR | e2e4 | 110 | 306,699 | 9,716 | 2,052.6 |
+| Recursive (Exhaustive) | d2d4 | 110 | 5,071,234 | 185,198 | 50,541.4 |
+| ID (Exhaustive) | d2d4 | 110 | 5,287,598 | 74,898 | 49,433.5 |
+| BPVS<br>(ID + AB + LMP + Batches) | d2d4 | 110 | 537,447 | 13,879 | 12,851.7 |
+| + MVVLVA | d2d4 | 110 | 537,447 | 13,514 | 2,562.9 |
+| + TT | d2d4 | 110 | 560,379 | 14,210 | 2,592.9 |
+| + PST | d2d4 | 110 | 396,845 | 10,968 | 2,592.7 |
+| + Killers | d2d4 | 110 | 397,953 | 10,958 | 2,235.0 |
+| + History | d2d4 | 110 | 397,927 | 11,211 | 2,248.3 |
+| + RFP | e2e4 | 110 | 657,319 | 15,980 | 3,181.9 |
+| + FFP | d2d4 | 110 | 150,013 | 7,139 | 3,181.9 |
+| + LMR | d2d4 | 110 | 149,702 | 6,852 | 1,520.2 |
 | Quack-Mate JS (DFS Reference) | d2d4 | 100 | 3,838 | 253 | 94.9 |
 | Stockfish 18 (Ceiling) | e2e4 | 29 | 541 | 1 | 421.8 |
 
@@ -990,15 +996,15 @@ To anchor the SQL results in an absolute frame of reference, the tables include 
 |---|---|---|---|---|---|
 | Recursive (Exhaustive) | - | - | - | - | OOM |
 | ID (Exhaustive) | - | - | - | - | OOM |
-| BPVS<br>(ID + AB + LMP + Batches) | c3d5 | 410 | 2,667,238 | 71,651 | 11,108.5 |
-| + MVVLVA | c3d5 | 335 | 1,792,858 | 45,977 | 11,052.0 |
-| + TT | c3d5 | 335 | 1,836,458 | 48,275 | 8,407.3 |
-| + PST | c3d5 | 335 | 1,775,465 | 47,296 | 8,364.8 |
-| + Killers | c3d5 | 335 | 1,676,612 | 45,807 | 7,997.8 |
-| + History | c3d5 | 335 | 1,676,612 | 45,190 | 7,870.4 |
-| + RFP | c3d5 | 335 | 212,065 | 14,315 | 7,870.2 |
-| + FFP | c3d5 | 330 | 3,647,133 | 100,753 | 14,613.7 |
-| + LMR | c3d5 | 330 | 3,800,686 | 99,543 | 15,155.1 |
+| BPVS<br>(ID + AB + LMP + Batches) | c3d5 | 410 | 3,389,413 | 81,995 | 12,274.2 |
+| + MVVLVA | c4d5 | 340 | 992,776 | 27,208 | 12,247.7 |
+| + TT | c4d5 | 340 | 982,576 | 26,977 | 3,861.5 |
+| + PST | c3d5 | 410 | 907,532 | 24,937 | 3,842.6 |
+| + Killers | c3d5 | 410 | 907,532 | 24,349 | 3,539.8 |
+| + History | c3d5 | 410 | 907,095 | 24,536 | 3,539.8 |
+| + RFP | c3d5 | 410 | 68,591 | 5,620 | 3,508.4 |
+| + FFP | c3d5 | 330 | 3,629,111 | 89,136 | 16,655.5 |
+| + LMR | c3d5 | 330 | 2,398,282 | 64,215 | 16,591.5 |
 | Quack-Mate JS (DFS Reference) | c3d5 | 335 | 6,225 | 305 | 94.9 |
 | Stockfish 18 (Ceiling) | c3d5 | 178 | 385 | 1 | 422.2 |
 
@@ -1011,15 +1017,15 @@ To anchor the SQL results in an absolute frame of reference, the tables include 
 |---|---|---|---|---|---|
 | Recursive (Exhaustive) | - | - | - | - | OOM |
 | ID (Exhaustive) | - | - | - | - | OOM |
-| BPVS<br>(ID + AB + LMP + Batches) | e2a6 | 375 | 9,359,433 | 227,171 | 21,576.4 |
-| + MVVLVA | e2a6 | 375 | 7,526,634 | 188,566 | 21,429.7 |
-| + TT | e2a6 | 375 | 7,524,113 | 187,634 | 20,685.0 |
-| + PST | e2a6 | 375 | 6,912,192 | 154,190 | 20,493.1 |
-| + Killers | e2a6 | 375 | 6,912,008 | 155,012 | 20,400.0 |
-| + History | e2a6 | 375 | 6,912,171 | 156,670 | 20,568.4 |
-| + RFP | e2a6 | 170 | 468,312 | 16,762 | 20,440.6 |
-| + FFP | e2a6 | 170 | 403,228 | 16,334 | 3,053.6 |
-| + LMR | e2a6 | 170 | 412,643 | 16,661 | 2,950.3 |
+| BPVS<br>(ID + AB + LMP + Batches) | e2a6 | 445 | 10,245,183 | 254,160 | 29,122.4 |
+| + MVVLVA | e2a6 | 445 | 7,586,932 | 192,074 | 28,232.5 |
+| + TT | e2a6 | 445 | 7,614,883 | 195,302 | 24,651.3 |
+| + PST | e2a6 | 445 | 7,010,164 | 167,838 | 24,459.4 |
+| + Killers | e2a6 | 445 | 7,011,635 | 170,468 | 23,136.9 |
+| + History | e2a6 | 445 | 7,010,815 | 168,884 | 23,374.8 |
+| + RFP | e2a6 | 170 | 493,386 | 17,623 | 23,148.9 |
+| + FFP | e2a6 | 170 | 420,911 | 16,127 | 2,826.9 |
+| + LMR | e2a6 | 170 | 355,845 | 14,550 | 2,747.8 |
 | Quack-Mate JS (DFS Reference) | e2a6 | 375 | 9,269 | 511 | 99.7 |
 | Stockfish 18 (Ceiling) | e2a6 | -128 | 381 | 1 | 422.1 |
 
@@ -1030,17 +1036,17 @@ To anchor the SQL results in an absolute frame of reference, the tables include 
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | b4f4 | 110 | 716,960 | 24,158 | 7,598.5 |
-| ID (Exhaustive) | b4f4 | 110 | 766,295 | 15,619 | 7,598.5 |
-| BPVS<br>(ID + AB + LMP + Batches) | b4f4 | 110 | 183,780 | 6,819 | 3,158.0 |
-| + MVVLVA | b4f4 | 110 | 191,927 | 7,175 | 1,367.4 |
-| + TT | b4f4 | 110 | 164,969 | 6,532 | 1,367.4 |
-| + PST | b4f4 | 110 | 140,247 | 6,276 | 1,259.7 |
-| + Killers | b4f4 | 110 | 135,138 | 6,162 | 1,143.6 |
-| + History | b4f4 | 110 | 135,138 | 6,148 | 1,104.2 |
-| + RFP | b4f4 | 110 | 91,956 | 5,491 | 1,104.2 |
-| + FFP | b4f4 | 110 | 105,394 | 5,913 | 1,002.6 |
-| + LMR | b4f4 | 110 | 106,700 | 5,691 | 1,008.8 |
+| Recursive (Exhaustive) | b4f4 | 110 | 716,960 | 25,537 | 8,240.0 |
+| ID (Exhaustive) | b4f4 | 110 | 766,295 | 15,058 | 7,110.7 |
+| BPVS<br>(ID + AB + LMP + Batches) | b4f4 | 110 | 217,111 | 7,229 | 3,353.8 |
+| + MVVLVA | b4f4 | 110 | 264,874 | 7,771 | 1,543.1 |
+| + TT | b4f4 | 110 | 226,736 | 7,598 | 1,543.1 |
+| + PST | b4f4 | 110 | 171,460 | 6,703 | 1,408.2 |
+| + Killers | b4f4 | 110 | 180,356 | 6,899 | 1,253.4 |
+| + History | b4f4 | 110 | 180,342 | 6,917 | 1,258.4 |
+| + RFP | b4f4 | 110 | 137,775 | 6,184 | 1,258.4 |
+| + FFP | b4f4 | 110 | 113,913 | 6,087 | 1,092.3 |
+| + LMR | b4f4 | 110 | 35,192 | 4,076 | 1,012.2 |
 | Quack-Mate JS (DFS Reference) | b4f4 | 110 | 2,126 | 54 | 92.0 |
 | Stockfish 18 (Ceiling) | b4f4 | 97 | 246 | 1 | 422.2 |
 
@@ -1056,36 +1062,36 @@ This is a non-trivial result. It means that the batch-based BFS search, with its
 **The True Cost of BFS: Reading the Node Counts**
 The JS reference engine makes the BFS tax visible in raw numbers. With the full set of optimisations, the JS engine evaluates roughly **3,800 nodes** on the Start Position, **6,200** on the Complex Mid-game, **9,300** on KiwiPete, and **2,100** on the Endgame. These are the node counts a recursive DFS achieves with tight, sequentially-updated Alpha-Beta bounds.
 
-The SQL engine's fully-optimised `+ LMR` configuration evaluates approximately **306,700**, **3,800,000**, **412,600**, and **106,700** nodes respectively — between **25× and 600× more** than the JS reference on the same positions.
+The SQL engine's fully-optimised `+ LMR` configuration evaluates approximately **149,700**, **2,398,000**, **355,800**, and **35,200** nodes respectively — between **15× and 400× more** than the JS reference on the same positions.
 
 This gap is inherent to BFS. A recursive engine updates its Alpha bound the instant a move completes, immediately shrinking the search window for every subsequent sibling. A batch-based SQL engine evaluates a full batch of 4 moves first, updates Alpha only at the batch boundary, and then re-prunes. Between each of those update points, the engine is flying blind, evaluating subtrees that a DFS would have already cut. The gap is not a bug — it is the fundamental trade-off of computing in a relational data model.
 
 **The SQL Engine Punches Through the Overhead**
-That said, the raw volume of data processed by the SQL engine deserves respect. During the Complex Mid-game search, the fully-optimised SQL engine evaluates 3.8 million nodes and completes in around 100 seconds on a machine also hosting a live DuckDB instance and a Node.js bridge. On the Endgame, it finishes in roughly 6 seconds. The SQL execution engine — DuckDB's vectorised query pipeline — is driving through millions of board states per second, doing all of its bitwise attack detection, legality checking, and minimax scoring **entirely in SQL**, with zero row-by-row callbacks into JavaScript until the final scalar result. For a system built entirely on general-purpose analytical SQL, this is genuinely impressive raw throughput.
+That said, the raw volume of data processed by the SQL engine deserves respect. During the Complex Mid-game search, the fully-optimised SQL engine evaluates 2.4 million nodes and completes in around 64 seconds on a machine also hosting a live DuckDB instance and a Node.js bridge. On the Endgame, it finishes in roughly 4 seconds. The SQL execution engine — DuckDB's vectorised query pipeline — is driving through millions of board states per second, doing all of its bitwise attack detection, legality checking, and minimax scoring **entirely in SQL**, with zero row-by-row callbacks into JavaScript until the final scalar result. For a system built entirely on general-purpose analytical SQL, this is genuinely impressive raw throughput.
 
-The pruning effectiveness is clearest between `BPVS` (basic AB with LMP only) and the fully-optimised `+ LMR`. On the Complex Mid-game, activation of RFP alone collapses the node count from 1.6M to 212K — an **8× reduction** in a single step. On the Endgame, every heuristic stacks cleanly: going from 183K nodes at BPVS baseline down to 106K with the complete stack. The engine is doing real work.
+The pruning effectiveness is clearest between `BPVS` (basic AB with LMP only) and the fully-optimised `+ LMR`. On the Complex Mid-game, activation of RFP alone collapses the node count from 907K to 68K — a **13× reduction** in a single step. On the Endgame, every heuristic stacks cleanly: going from 217K nodes at BPVS baseline down to 35K with the complete stack. The engine is doing real work.
 
 **Taming the Memory Wall with Batched Search**
-Pure recursive or iterative deepening (ID) searches suffer from combinatorial explosion, keeping the entire unpruned breadth of the tree in memory simultaneously. The Batched Principal Variation Search (BPVS) solves this by integrating Alpha-Beta pruning with transactional chunking: memory is only held for the current batch being evaluated. By breaking expansion into strict limits (exactly 4 moves per parent in the initial batch), BPVS definitively shatters the memory wall.
+Pure recursive or iterative deepening (ID) searches suffer from combinatorial explosion, keeping the entire unpruned breadth of the tree in memory simultaneously. The Batched Principal Variation Search (BPVS) solves this by integrating Alpha-Beta pruning with transactional chunking: memory is only held for the current batch being evaluated. By breaking expansion into strict limits (a single move per parent in the initial batch), BPVS definitively shatters the memory wall.
 
 On the Start Position, moving from `ID (Exhaustive)` to `BPVS` cuts the memory footprint by **75%**, dropping from a massive 49GB down to a manageable 12GB. In the Endgame, the footprint drops from 7.5GB to 3.1GB, making the engine viable on standard hardware. The JS reference engine, running as a pure DFS with a fixed-depth call stack, sits comfortably under 100MB for all positions — a reminder of just how lightweight an imperative search graph can be.
 
 **The Overhead of Move Ordering in SQL**
 In classical engines, lookups against Transposition Tables (TT) or Piece-Square Tables (PST) cost nanoseconds — a direct pointer dereference against an array in L1 cache. In a relational database engine, they require explicit `LEFT JOIN` operations across large tables, introducing measurable query execution overhead.
 
-The data shows this is a calculated trade-off. On highly tactical boards like "KiwiPete" (Board 3), the combined effect of TT, PST, and History heuristics provides massive structural benefits, reducing the node count from 9.3 million down to 6.9 million and shaving nearly 70 seconds off the compute time. Conversely, on simpler boards like the Start Position, the complex `ORDER BY` clauses required for these heuristics do not produce enough Alpha-Beta cutoffs to offset their SQL join overhead, occasionally resulting in fractionally slower times despite evaluating fewer nodes.
+The data shows this is a calculated trade-off. On highly tactical boards like "KiwiPete" (Board 3), the combined effect of TT, PST, and History heuristics provides massive structural benefits, reducing the node count from 10.2 million down to 7.0 million and shaving nearly 86 seconds off the compute time. Conversely, on simpler boards like the Start Position, the complex `ORDER BY` clauses required for these heuristics do not produce enough Alpha-Beta cutoffs to offset their SQL join overhead, occasionally resulting in fractionally slower times despite evaluating fewer nodes.
 
 **The TT and MVV-LVA Anomalies**
 When evaluating move ordering heuristics, the data reveals two fascinating anomalies that would alarm a traditional engine developer.
 
-First, observe the **Transposition Table (TT)** on the Start Position. Activating the TT actually *increased* the node count from 834K to 860K. In classical engines, this implies broken hash collisions or corrupted Alpha/Beta bounds. In Quack-Mate, this is expected behavior. Because implementing "Total Branch Pruning" via SQL proved too slow (verifying exact bound types across millions of joined rows), Quack-Mate exclusively uses the TT for *Move Ordering* as a fallback tie-breaker. In heavily-congested quiet positions, this tie-breaker occasionally nudges the query planner to sort identical quiet moves differently, which subtly alters the order of Beta cutoffs within a batch and slightly inflates the node volume.
+First, observe the **Transposition Table (TT)** on the Start Position. Activating the TT actually *increased* the node count from 537K to 560K. In classical engines, this implies broken hash collisions or corrupted Alpha/Beta bounds. In Quack-Mate, this is expected behavior. Because implementing "Total Branch Pruning" via SQL proved too slow (verifying exact bound types across millions of joined rows), Quack-Mate exclusively uses the TT for *Move Ordering* as a fallback tie-breaker. In heavily-congested quiet positions, this tie-breaker occasionally nudges the query planner to sort identical quiet moves differently, which subtly alters the order of Beta cutoffs within a batch and slightly inflates the node volume.
 
-Second, there is a glaring anomaly in the **MVV-LVA** data for Board 4 (Endgame): activating MVV-LVA increase the node count from 183,780 to 191,927. This isn't a bug; it is a textbook example of search instability. In a sparse endgame, captures are rare and often tactically irrelevant compared to critical positional moves (like moving the King to maintain opposition). By blindly forcing MVV-LVA to the top of our SQL ordering stack, we artificially inflate the value of a useless pawn capture. The engine wastes its initial full-window PVS batch evaluating that bad capture, fails to establish a strong Alpha threshold, and consequently fails to prune the subsequent batches of sibling moves. It proves that while MVV-LVA is mathematically essential for complex mid-games, it can actively fight against optimal move-ordering in quiet endgames.
+Second, there is a glaring anomaly in the **MVV-LVA** data for Board 4 (Endgame): activating MVV-LVA increases the node count from 217,111 to 264,874. This isn't a bug; it is a textbook example of search instability. In a sparse endgame, captures are rare and often tactically irrelevant compared to critical positional moves (like moving the King to maintain opposition). By blindly forcing MVV-LVA to the top of our SQL ordering stack, we artificially inflate the value of a useless pawn capture. The engine wastes its initial full-window PVS batch evaluating that bad capture, fails to establish a strong Alpha threshold, and consequently fails to prune the subsequent batches of sibling moves. It proves that while MVV-LVA is mathematically essential for complex mid-games, it can actively fight against optimal move-ordering in quiet endgames.
 
 **The Dynamics of Pruning and Search Instability**
 Aggressive pruning techniques — RFP, FFP, and LMR — are structural requirements to prevent the analytical database from drowning in tree generation. However, they demonstrate highly position-dependent behaviour.
 
-In the Complex Mid-game (Board 2), static pruning (`RFP`) is phenomenally effective, slashing the node count from 1.6M down to just 212K and completing the search in 14 seconds. Yet, when forward pruning (`FFP` and `LMR`) are added on top, the node count unexpectedly spikes back up to 3.8M.
+In the Complex Mid-game (Board 2), static pruning (`RFP`) is phenomenally effective, slashing the node count from 907K down to just 68K and completing the search in 5.6 seconds. Yet, when forward pruning (`FFP` and `LMR`) are added on top, the node count unexpectedly spikes back up to 2.4M.
 
 This behaviour illustrates a concept known as "soft" search instability. Because the engine operates on a strict "Zero-Window" search (`[pvScore - 1, pvScore]`) during its batched evaluations, an aggressively reduced move that turns out to be tactically superior will **fail high** — essentially "breaking" the narrow Alpha-Beta window we set. 
 
@@ -1099,7 +1105,7 @@ If you've spent any time tuning analytical databases, a few critical questions a
 Let's address the hard engineering realities of forcing an OLAP engine to do DFS search.
 
 ### Profiling: Where Does the Time Actually Go?
-When executing an `EXPLAIN ANALYSE` on the massive 1-ply expansion queries (which can exceed 500 lines of dynamically generated SQL), the profiling reveals exactly what you might expect for an engine that bridges scalars and relations: we are overwhelmingly Join-bound.
+When executing an `EXPLAIN ANALYZE` on the massive 1-ply expansion queries (which can exceed 500 lines of dynamically generated SQL), the profiling reveals exactly what you might expect for an engine that bridges scalars and relations: we are overwhelmingly Join-bound.
 
 Here is a summarised, time-annotated snippet from DuckDB's native `query_tree` profiler showing the execution hierarchy of a pseudo-legal move generation query:
 
