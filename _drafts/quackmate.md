@@ -40,19 +40,24 @@ Modern chess engines use **Bitboards**: 64-bit integers where each bit represent
 
 Using Bitboards means answering chess questions becomes lighting-fast bitwise math. 
 
-Want to know where *all* white pieces are?
+All the White Pawns are identified by a specific bitboard:
 ```
-white_pawns | white_knights | ... | white_king
+wP_bb
+```
+
+Where are *all* the white pieces?
+```
+w_bb = wP_bb | wN_bb | ... | wK_bb
 ```
  
 Is that square empty?
 ```
-(all_pieces & square_mask) == 0
+((w_bb | b_bb) & square_mask) == 0
 ```
 
-Want to flip the presence of a white knight on a square?
+Want to flip the presence of a White Knight on a specific square?
 ```
-white_knights ^ square_mask
+wN_bb ^ square_mask
 ```
 
 This is how modern engines evaluate positions millions of times per second.
@@ -76,9 +81,8 @@ Because DuckDB supports these bitwise operators natively on unsigned integers, t
 ```sql
 -- Applying a move to the white pawns bitboard
 SELECT 
-    -- The xor() function flips the bit at deltaFrom (removing the pawn)
-    -- and flips the bit at deltaTo (placing the new pawn)
-    xor(s.wP_bb, xor(deltaFrom_mask, deltaTo_mask)) AS wP_bb
+    -- XORing the combined (OR'd) masks toggles both squares at once
+    xor(s.wP_bb, (deltaFrom_mask | deltaTo_mask)) AS wP_bb
 FROM current_states s
 -- (This happens concurrently for all 12 piece column types)
 ```
@@ -87,6 +91,8 @@ FROM current_states s
 ### Pseudo-Move Generation
 
 To look into the future, the engine must systematically generate all possible next moves from a given position. Building the massive tree of variations starts here. These generated moves are "pseudo-legal". This means they follow the basic geometric movement rules of the pieces (e.g., a bishop moving diagonally), but they don't yet account for complex board state rules, like whether making that move would illegally expose the player's own King to check.
+
+<img src="/assets/images/quackmate_bitboard_move_gen.png" alt="Diagram showing pseudo-move generation for chess movement" width="450" style="display: block; margin: 0 auto;"/>
 
 #### The Imperative Way
 While modern engines don't naively loop over all 64 squares, they *do* iterate piece-by-piece.
@@ -130,11 +136,11 @@ SELECT
     s.id AS parent_id, m.from_sq, m.target_sq AS to_sq, pt.piece
 FROM current_states s
 
--- 1. Explode: Find occupied squares for all active pieces simultaneously
+-- 1. Explode: Identify piece types on occupied squares
 JOIN LATERAL (
-    SELECT 2 AS piece WHERE is_bit_set(s.wN_bb, sq.i) UNION ALL
-    SELECT 3 AS piece WHERE is_bit_set(s.wB_bb, sq.i) UNION ALL
-    -- ... and so on for Rooks, Queens, Kings
+    SELECT 2 AS piece WHERE is_bit_set(s.wN_bb, sq.i) UNION ALL -- Knight
+    SELECT 3 AS piece WHERE is_bit_set(s.wB_bb, sq.i) UNION ALL -- Bishop
+    -- ... and so on for Rooks (4), Queens (5), Kings (6)
 ) pt ON true
 
 -- 2. Generate pseudo-moves for all regular identified pieces
