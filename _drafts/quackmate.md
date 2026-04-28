@@ -406,6 +406,9 @@ To search deep enough to play well, engines rely on **Alpha-Beta Pruning**. Conc
 
 For Alpha-Beta pruning to be effective, it inherently requires a **Depth-First Search (DFS)**. The engine must plunge down a single, promising branch all the way to the end to establish a strong "score to beat." This threshold is tracked using two mathematical bounds: **Alpha** (the minimum guaranteed score for the current player) and **Beta** (the maximum score the opponent will ever allow you to achieve). 
 
+The diagram below visualizes this process on a toy-sized search tree. Follow the sequential numbers (`[1]`, `[2]`, `[3]`, etc.) to trace the engine's exact Depth-First execution path. Because the engine plunges all the way down the left-most branch first, it establishes a high Alpha bound early. By the time it evaluates the alternative move on the right, Black immediately finds a devastating response, driving Beta below Alpha. The engine instantly cuts off the search, completely bypassing the remaining unexplored sub-tree.
+
+
 ```mermaid
 graph TD
     %% Styling definitions
@@ -414,26 +417,26 @@ graph TD
     classDef leafNode fill:#1e90ff,stroke:#3742fa,stroke-width:2px,color:#ffffff,font-weight:bold;
     classDef prunedNode fill:#ff4757,stroke:#ff6b81,stroke-width:2px,color:#ffffff,stroke-dasharray: 5 5,font-weight:bold;
     
-    Root("⚪ White (MAX) | α=4, β=∞"):::maxNode
+    Root("[1] White (MAX) | α=4, β=∞"):::maxNode
     
-    NodeA("⚫ Black (MIN) | α=-∞, β=4"):::minNode
-    NodeB("⚫ Black (MIN) | α=4, β=3"):::minNode
+    NodeA("[2] Black (MIN) | α=-∞, β=4"):::minNode
+    NodeB("[9] Black (MIN) | α=4, β=3"):::minNode
 
-    NodeC("⚪ White (MAX) | Returns: +4"):::maxNode
-    NodeD("⚪ White (MAX) | Returns: +6"):::maxNode
+    NodeC("[3] White (MAX) | Returns: +4"):::maxNode
+    NodeD("[6] White (MAX) | Returns: +6"):::maxNode
     
-    NodeE("⚪ White (MAX) | Returns: +3"):::maxNode
-    NodeF("⚪ White (MAX) | Pruned Sub-tree"):::prunedNode
+    NodeE("[10] White (MAX) | Returns: +3"):::maxNode
+    NodeF("[X] White (MAX) | Pruned Sub-tree"):::prunedNode
 
-    Leaf1("Eval: +4"):::leafNode
-    Leaf2("Eval: +3"):::leafNode
-    Leaf3("Eval: +5"):::leafNode
-    Leaf4("Eval: +6"):::leafNode
+    Leaf1("[4] Eval: +4"):::leafNode
+    Leaf2("[5] Eval: +3"):::leafNode
+    Leaf3("[7] Eval: +5"):::leafNode
+    Leaf4("[8] Eval: +6"):::leafNode
     
-    Leaf5("Eval: +3"):::leafNode
-    Leaf6("Eval: +2"):::leafNode
-    Leaf7("Eval: ??"):::prunedNode
-    Leaf8("Eval: ??"):::prunedNode
+    Leaf5("[11] Eval: +3"):::leafNode
+    Leaf6("[12] Eval: +2"):::leafNode
+    Leaf7("[X] Eval: ??"):::prunedNode
+    Leaf8("[X] Eval: ??"):::prunedNode
 
     Root -->|First Candidate Move| NodeA
     Root -->|Alternative Move| NodeB
@@ -457,7 +460,12 @@ graph TD
     NodeF -.-> Leaf8
 ```
 
-To understand the math intuitively, imagine you are shopping for a new house with a very picky partner:
+<br/>
+
+<details markdown="1">
+<summary class="tech-detail">Click to expand a more intuitive explanation of alpha-beta pruning</summary>
+
+To understand this more intuitively, imagine you are shopping for a new house with a very picky partner:
 
 *   **Alpha (Your "Floor"):** You’ve already found a nice house, House A, for €200,000. This is your "best found so far." You will never accept anything worse than this.
 *   **Beta (The Opponent's "Ceiling"):** Your partner has set a hard limit: "I will not live in a house that costs more than €250,000." This is the maximum they will ever allow you to achieve.
@@ -469,8 +477,9 @@ In the engine's search tree, we classify these moments as:
 *   **Fail-Low (score ≤ Alpha):** You found a house for €150,000, but it’s a total wreck. It's worse than your €200,000 floor. You ignore it and keep looking.
 *   **Fail-High (score ≥ Beta):** You found a mansion for €300,000. It's "too good"—meaning it exceeds the limit your partner set. Since they will never let the game reach this state, you stop searching this branch immediately.
 
-Establishment of these bounds is what allows an engine to ignore 99% of the game tree. Once they are established, the engine can use them to rapidly prune the remaining, shallower branches.
+</details>
 
+Establishment of these bounds is what allows an engine to ignore 99% of the game tree. Once they are established, the engine can use them to rapidly prune the remaining, shallower branches.
 
 This is exactly where the single-query SQL approach fails. A `WITH RECURSIVE` query is inherently a **Breadth-First Search (BFS)** engine. It generates *all* moves at depth 1, then *all* responses at depth 2 simultaneously. It cannot plunge down a single path to establish a pruning threshold before looking at the others. Because the engine must hold every single position of every single depth in memory simultaneously, a search depth of merely 3 logical turns becomes a hard limit. Going any deeper means waiting an eternity and watching your RAM vanish into the ether. 
 
