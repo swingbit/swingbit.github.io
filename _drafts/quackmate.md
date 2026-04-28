@@ -406,9 +406,60 @@ To search deep enough to play well, engines rely on **Alpha-Beta Pruning**. Conc
 
 For Alpha-Beta pruning to be effective, it inherently requires a **Depth-First Search (DFS)**. The engine must plunge down a single, promising branch all the way to the end to establish a strong "score to beat." This threshold is tracked using two mathematical bounds: **Alpha** (the minimum guaranteed score for the current player) and **Beta** (the maximum score the opponent will ever allow you to achieve). 
 
+```mermaid
+graph TD
+    %% Styling definitions
+    classDef maxNode fill:#f1f2f6,stroke:#2f3542,stroke-width:3px,color:#2f3542,font-weight:bold;
+    classDef minNode fill:#2f3542,stroke:#f1f2f6,stroke-width:3px,color:#f1f2f6,font-weight:bold;
+    classDef leafNode fill:#1e90ff,stroke:#3742fa,stroke-width:2px,color:#ffffff,font-weight:bold;
+    classDef prunedNode fill:#ff4757,stroke:#ff6b81,stroke-width:2px,color:#ffffff,stroke-dasharray: 5 5,font-weight:bold;
+    
+    Root("⚪ White (MAX) | α=4, β=∞"):::maxNode
+    
+    NodeA("⚫ Black (MIN) | α=-∞, β=4"):::minNode
+    NodeB("⚫ Black (MIN) | α=4, β=3"):::minNode
+
+    NodeC("⚪ White (MAX) | Returns: +4"):::maxNode
+    NodeD("⚪ White (MAX) | Returns: +6"):::maxNode
+    
+    NodeE("⚪ White (MAX) | Returns: +3"):::maxNode
+    NodeF("⚪ White (MAX) | Pruned Sub-tree"):::prunedNode
+
+    Leaf1("Eval: +4"):::leafNode
+    Leaf2("Eval: +3"):::leafNode
+    Leaf3("Eval: +5"):::leafNode
+    Leaf4("Eval: +6"):::leafNode
+    
+    Leaf5("Eval: +3"):::leafNode
+    Leaf6("Eval: +2"):::leafNode
+    Leaf7("Eval: ??"):::prunedNode
+    Leaf8("Eval: ??"):::prunedNode
+
+    Root -->|First Candidate Move| NodeA
+    Root -->|Alternative Move| NodeB
+    
+    NodeA --> NodeC
+    NodeA --> NodeD
+    
+    NodeB --> NodeE
+    NodeB -.->|Cutoff: β <= α| NodeF
+
+    NodeC --> Leaf1
+    NodeC --> Leaf2
+    
+    NodeD --> Leaf3
+    NodeD --> Leaf4
+    
+    NodeE --> Leaf5
+    NodeE --> Leaf6
+    
+    NodeF -.-> Leaf7
+    NodeF -.-> Leaf8
+```
+
 To understand the math intuitively, imagine you are shopping for a new house with a very picky partner:
 
-*   **Alpha (Your "Floor"):** You’ve already found a nice house at Dealer A for €200,000. This is your "best found so far." You will never accept anything worse than this.
+*   **Alpha (Your "Floor"):** You’ve already found a nice house, House A, for €200,000. This is your "best found so far." You will never accept anything worse than this.
 *   **Beta (The Opponent's "Ceiling"):** Your partner has set a hard limit: "I will not live in a house that costs more than €250,000." This is the maximum they will ever allow you to achieve.
 
 Now you visit House B. As soon as the real estate agent tells you the price is €260,000, you walk out. You don't need to check the kitchen or the backyard—you already know your partner will never agree to it. This is an **Alpha-Beta Cutoff**.
