@@ -94,7 +94,7 @@ To look into the future, the engine must systematically generate all possible ne
 
 <img src="/assets/images/quackmate_bitboard_move_gen.png" alt="Diagram showing pseudo-move generation for chess movement" width="450" style="display: block; margin: 0 auto;"/>
 
-#### The Imperative Way
+#### The Imperative Approach
 While modern engines don't naively loop over all 64 squares, they *do* iterate piece-by-piece.
 
 <details markdown="1">
@@ -123,7 +123,7 @@ while (knights) {
 </details>
 
 
-#### The SQL Way
+#### The Relational Approach
 Generating next moves isn't done piece-by-piece; it's a massive, concurrent `JOIN` operation. 
 
 <details markdown="1">
@@ -169,7 +169,7 @@ Chess rules forbid making a move that leaves your own King under attack. "Pseudo
 
 > Checking legality normally requires calculating complex "pin masks". SQL is terrible at this. To bypass it, we reverse the math: instead of tracking protecting pieces, we check if our King could theoretically attack the enemy piece in return.
 
-#### The Imperative Way
+#### The Imperative Approach
 Modern engines use fast bitwise math on the *current* board state to check legality, rather than making and un-making moves.
 
 <details markdown="1">
@@ -195,7 +195,7 @@ bool is_legal(Board board, Move move) {
 </details>
 
 
-#### The SQL Way
+#### The Relational Approach
 Quack-Mate embraces the brute force of set theory by applying all moves simultaneously and then filtering the illegal ones via a "backwards" attack check.
 
 <details markdown="1">
@@ -232,10 +232,12 @@ WHERE NOT EXISTS (
 
 ### Board Evaluation
 
-Once the engine reaches its maximum search depth, it has to stop looking ahead and simply judge the resulting position. This "static evaluation" provides the heuristic score that tells the engine whether a sequence of moves was brilliant or disastrous.
+Once the engine reaches its maximum search depth, it has to stop looking ahead and simply judge the resulting position. This "static evaluation" provides the heuristic score that tells the engine whether a sequence of moves was brilliant or disastrous. To do this, Quack-Mate utilizes [Tomasz Michniewski's Simplified Evaluation Function](https://www.chessprogramming.org/Simplified_Evaluation_Function), a famous set of Piece-Square Tables (PST) designed to give an engine basic positional understanding (like centralising knights and castling the king) without requiring complex heuristic logic.
 
-#### The Imperative Way
-Historically, static evaluation functions looped over an array representation of the board.
+<img src="/assets/images/quackmate_board_eval_pst.png" alt="Diagram showing board evaluation with Piece-Square Tables" width="450" style="display: block; margin: 0 auto;"/>
+
+#### The Imperative Approach
+Historically, static evaluation functions looped over an array representation of the board, summing up the material and PST values corresponding to the piece at each square.
 
 <details markdown="1">
 <summary class="tech-detail">Click to expand details</summary>
@@ -268,7 +270,7 @@ return score;
 </details>
 
 
-#### The SQL Way
+#### The Relational Approach
 Quack-Mate's evaluation is purely mathematical and set-based, leveraging DuckDB’s ability to process massive board sets simultaneously.
 
 <details markdown="1">
@@ -307,7 +309,7 @@ The engine has now generated the tree of legal moves and statically evaluated th
 
 The most elegant part of this pure SQL experiment is the "Recursive Strategy". It tackles this entire generation, evaluation, and score propagation cycle in **one single, glorious query** using a `WITH RECURSIVE` Common Table Expression (CTE). The structural translation is beautiful, mapping perfectly from an imperative Minimax algorithm into the language of relational sets.
 
-#### The Imperative Way
+#### The Imperative Approach
 In an imperative language, a minimax function calls itself recursively to explore the game tree. 
 
 <details markdown="1">
@@ -345,7 +347,7 @@ int minimax(Board node, int depth, bool is_white_turn) {
 </details>
 
 
-#### The SQL Way
+#### The Relational Approach
 This approach maps almost directly to a `WITH RECURSIVE` CTE, where the recursion is handled by the database engine.
 
 <details markdown="1">
@@ -444,7 +446,7 @@ If an engine happens to search the best moves first, it can mathematically prove
 
 It is crucial to distinguish **Move Ordering Scores** from the **Static Evaluation** discussed previously. Static Evaluation is a deep, mathematically rigorous judgement of the final board state *at the very end* of a search branch. Move Ordering, conversely, is a "quick and dirty" heuristic applied *before* searching. Its sole job is to guess which moves are the most promising so the engine can search them first. 
 
-#### The Imperative Way
+#### The Imperative Approach
 Before diving down into the search tree, engines generate a list of legal moves and assign each a quick `ordering_score`. 
 
 <details markdown="1">
@@ -475,7 +477,7 @@ sort_moves_by_score(moves, move_scores);
 ```
 </details>
 
-#### The SQL Way
+#### The Relational Approach
 In our BPVS approach, move ordering is handled via SQL Window Functions to rank sibling moves.
 
 <details markdown="1">
@@ -512,7 +514,7 @@ Let's take a deep dive into the specific techniques integrated to squeeze every 
 
 While standard Alpha-Beta pruning is the mathematical foundation of modern chess engines, Quack-Mate skips implementing it directly and instead relies exclusively on a more advanced variant called **Principal Variation Search (PVS)**. As we will see later, this is not just an optimisation, but a structural necessity for the database architecture. The core premise of PVS is that if our move ordering is good, the very first move we examine (the Principal Variation, or PV) is highly likely to be the best. 
 
-#### The Imperative Way
+#### The Imperative Approach
 The PVS algorithm searches this first expected "best move" with a standard, wide "full window" (passing the actual, broad **Alpha** and **Beta** bounds) to figure out exactly how good it is. 
 
 
@@ -555,7 +557,7 @@ int pvs(Board node, int ply, int limit, int alpha, int beta) {
 
 
 
-#### The SQL Way
+#### The Relational Approach
 This is where the "Batched" in BPVS comes in to save the day. In a traditional engine, you search moves sequentially, one by one. In SQL, searching 30 moves sequentially means 30 round-trips to the database, which is cripplingly slow. However, if you shove all 30 remaining moves into a single SQL query, you cannot update your Alpha-Beta thresholds *between* them, rendering your pruning useless. We need a compromise. 
 
 <details markdown="1">
@@ -591,7 +593,7 @@ This is why PVS is a structural necessity for SQL. By evaluating the remaining s
 
 The most effective way to trigger early alpha-beta cutoffs is to search the most "violent" moves first. MVV-LVA (Most Valuable Victim - Least Valuable Attacker) is a simple but devastatingly effective heuristic for ordering captures: it prioritizes capturing the most valuable enemy pieces using your least valuable ones.
 
-#### The Imperative Way
+#### The Imperative Approach
 Engines prioritize captures by assigning them a score based on the value of the piece being taken versus the piece doing the attacking.
 
 <details markdown="1">
@@ -609,7 +611,7 @@ if (is_capture(m)) {
 ```
 </details>
 
-#### The SQL Way
+#### The Relational Approach
 In SQL, we calculate the MVV-LVA score for all captures simultaneously using a simple CASE expression within our ordering window function.
 
 <details markdown="1">
@@ -646,7 +648,7 @@ With these evaluations securely cached, classical engines read from the TT to pe
 
 Where engines diverge is how they *store* and enforce this rule.
 
-#### The Imperative Way
+#### The Imperative Approach
 Engines use a blazing-fast 64-bit Zobrist Hash as the primary key in a massive, painstakingly pre-allocated memory map.
 
 <details markdown="1">
@@ -671,7 +673,7 @@ transposition_table[zobrist_hash] = {remaining_depth, score, best_move};
 ```
 </details>
 
-#### The SQL Way
+#### The Relational Approach
 In SQL, memory management and hash-mapping are abstracted away into a simple database table.
 
 <details markdown="1">
@@ -707,7 +709,7 @@ WHERE EXCLUDED.depth >= transposition_table.depth;
 
 Suppose we are exploring different ways to respond to our opponent. If a specific "quiet" move (like a solid knight jump that doesn't capture anything) proves to be devastating in one variation, it is highly likely to be a devastating response in similar variations too. This is known as a "killer move."
 
-#### The Imperative Way
+#### The Imperative Approach
 The engine tracks a couple of recent "killer moves" per search depth (ply). 
 
 <details markdown="1">
@@ -723,7 +725,7 @@ if (m == killer_moves[depth][0] || m == killer_moves[depth][1]) {
 </details>
 
 
-#### The SQL Way
+#### The Relational Approach
 We maintain an explicit `killer_moves` table to artificially inflate the `move_order_score`.
 
 <details markdown="1">
@@ -754,7 +756,7 @@ JOIN possible_moves m ...
 
 Killer Moves remember specific moves that worked well at a given depth. The **History Heuristic** takes a broader view: it maintains a global score for every `(piece, destination_square)` combination across the entire search. Every time a move causes a Beta cutoff (a pruning success), its history score is incremented. Over time, the history table learns that, say, "a Knight landing on d5 tends to be a strong move" regardless of the surrounding context.
 
-#### The Imperative Way
+#### The Imperative Approach
 Engines typically maintain a 2D array indexed by `[piece][to_square]` to track global move success.
 
 <details markdown="1">
@@ -770,7 +772,7 @@ history_table[moving_piece][to_square] += importance * importance;
 ```
 </details>
 
-#### The SQL Way
+#### The Relational Approach
 The history table is a database table updated via bulk `UPSERT` after each BPVS iteration.
 
 <details markdown="1">
@@ -800,7 +802,7 @@ The heuristics above all serve a single purpose: deciding *in which order* to se
 
 Sometimes, a position's static evaluation is so overwhelmingly winning that even if we gave our opponent a completely "free turn" (a null move), they *still* couldn't bring the score back within the Alpha-Beta window.
 
-#### The Imperative Way
+#### The Imperative Approach
 Before generating any legal moves, the engine takes a quick look at the static evaluation to see if it's overwhelmingly winning.
 
 <details markdown="1">
@@ -820,7 +822,7 @@ if (ply < limit && !is_check) {
 ```
 </details>
 
-#### The SQL Way
+#### The Relational Approach
 Quack-Mate executes this pruning natively across the entire `frontier_nodes` table simultaneously.
 
 <details markdown="1">
@@ -852,7 +854,7 @@ While *Reverse* Futility Pruning works on the parent nodes *before* generating m
 
 If a newly generated quiet move (not a capture, check, or promotion) results in a static evaluation that is hopelessly far below our `alpha` threshold, we throw it away before ever pursuing it deeper.
 
-#### The Imperative Way
+#### The Imperative Approach
 Near the search horizon, the engine discards quiet moves that result in a hopelessly bad static evaluation.
 
 <details markdown="1">
@@ -871,7 +873,7 @@ if (ply + 2 >= limit && !is_capture && !is_check && !is_promo) {
 ```
 </details>
 
-#### The SQL Way
+#### The Relational Approach
 Quack-Mate applies FFP at *every* depth as a deliberate trade-off. 
 
 <details markdown="1">
@@ -897,7 +899,7 @@ AND NOT (
 
 Forward Futility Pruning permanently discards moves based on their *static evaluation* — if the resulting position is hopelessly bad, throw it away. But what about quiet moves that survive all our pruning filters and don't *look* terrible, but simply ranked very low in the move ordering? They're probably useless, but we can't be sure enough to throw them away entirely. LMR takes a more cautious approach: instead of discarding these late-ranked moves, it gives them a *quick trial* by searching them at a reduced depth. If the shallow search confirms they're bad, we move on. If it surprisingly reveals the move is good, the engine re-searches it at full depth — no harm done.
 
-#### The Imperative Way
+#### The Imperative Approach
 Instead of searching a late-ranked move at full depth, the engine intentionally searches it at a reduced depth. 
 
 <details markdown="1">
@@ -918,7 +920,7 @@ if (is_quiet(m) && move_index > 4 && ply + 3 <= limit) {
 ```
 </details>
 
-#### The SQL Way
+#### The Relational Approach
 In our BPVS loop, late batches are intentionally searched at an artificially lower depth.
 
 <details markdown="1">
