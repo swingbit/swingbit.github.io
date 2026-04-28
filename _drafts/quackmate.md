@@ -232,7 +232,8 @@ WHERE NOT EXISTS (
 
 ### Board Evaluation
 
-Once the engine reaches its maximum search depth, it has to stop looking ahead and simply judge the resulting position. This "static evaluation" provides the heuristic score that tells the engine whether a sequence of moves was brilliant or disastrous. To do this, Quack-Mate utilizes [Tomasz Michniewski's Simplified Evaluation Function](https://www.chessprogramming.org/Simplified_Evaluation_Function), a famous set of Piece-Square Tables (PST) designed to give an engine basic positional understanding (like centralising knights and castling the king) without requiring complex heuristic logic.
+Once the engine reaches its maximum search depth, it has to stop looking ahead and simply judge the resulting position. This "static evaluation" provides the heuristic score that tells the engine whether the sequence of moves that led to the current board was brilliant or disastrous. To do this, Quack-Mate utilizes material values (the static value assigned to each piece type) and [Tomasz Michniewski's Simplified Evaluation Function](https://www.chessprogramming.org/Simplified_Evaluation_Function), a famous set of Piece-Square Tables (PST) designed to give an engine basic positional understanding (like centralising knights and castling the king) without requiring complex heuristic logic.
+A simple sum of all material and PST values (positive for white, negative for black) determines the total board value.
 
 <img src="/assets/images/quackmate_board_eval_pst.png" alt="Diagram showing board evaluation with Piece-Square Tables" width="450" style="display: block; margin: 0 auto;"/>
 
