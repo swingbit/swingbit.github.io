@@ -410,6 +410,7 @@ The diagram below visualizes this process on a toy-sized search tree. Follow the
 
 
 ```mermaid
+%%{init: {"flowchart": {"nodeSpacing": 20, "rankSpacing": 40}, "themeVariables": {"fontSize": "20px"}}}%%
 graph TD
     %% Styling definitions
     classDef maxNode fill:#f1f2f6,stroke:#2f3542,stroke-width:3px,color:#2f3542,font-weight:bold;
@@ -417,16 +418,23 @@ graph TD
     classDef leafNode fill:#1e90ff,stroke:#3742fa,stroke-width:2px,color:#ffffff,font-weight:bold;
     classDef prunedNode fill:#ff4757,stroke:#ff6b81,stroke-width:2px,color:#ffffff,stroke-dasharray: 5 5,font-weight:bold;
     
-    Root("[1] White (MAX) | α=4, β=∞"):::maxNode
+    Root("[1] White (MAX)
+α=4, β=∞"):::maxNode
     
-    NodeA("[2] Black (MIN) | α=-∞, β=4"):::minNode
-    NodeB("[9] Black (MIN) | α=4, β=3"):::minNode
+    NodeA("[2] Black (MIN)
+α=-∞, β=4"):::minNode
+    NodeB("[9] Black (MIN)
+α=4, β=3"):::minNode
 
-    NodeC("[3] White (MAX) | Returns: +4"):::maxNode
-    NodeD("[6] White (MAX) | Returns: +6"):::maxNode
+    NodeC("[3] White (MAX)
+Returns: +4"):::maxNode
+    NodeD("[6] White (MAX)
+Returns: +6"):::maxNode
     
-    NodeE("[10] White (MAX) | Returns: +3"):::maxNode
-    NodeF("[X] White (MAX) | Pruned Sub-tree"):::prunedNode
+    NodeE("[10] White (MAX)
+Returns: +3"):::maxNode
+    NodeF("[X] White (MAX)
+Pruned Sub-tree"):::prunedNode
 
     Leaf1("[4] Eval: +4"):::leafNode
     Leaf2("[5] Eval: +3"):::leafNode
