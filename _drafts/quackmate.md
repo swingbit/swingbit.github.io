@@ -1169,6 +1169,8 @@ This brings us back to the question of hardware: can we simply throw more CPU co
 
 On highly complex boards (like the tactical **KiwiPete** or **Complex Mid-game** positions), where the branching factor is dense enough to saturate more vector chunks, DuckDB can actually find some breathing room. Benchmarks show a modest **15-20% speedup** when moving from 1 to 8 threads on these dense positions.
 
+While this gain is small compared to classical engines, it is important to note the **effort-to-reward ratio**. In a traditional engine, implementing parallel search (like Lazy SMP) requires writing hundreds of lines of complex, error-prone lockless code and manual thread management. In Quack-Mate, we get this speedup for free: the database engine handles all the scheduling, synchronization, and resource allocation. We simply set a single variable, and DuckDB takes care of the rest.
+
 However, the **Scaling Wall** is always lurking. Once the board simplifies into an endgame, or once we throw *too* many threads at the problem, the overhead of synchronization and barrier management begins to eat those gains alive. As the plot below shows, throwing 16 cores at a problem that barely fills a single vector chunk is a recipe for diminishing returns.
 
 <img src="/assets/images/quackmate_threads.png" alt="Plot showing search time scaling by thread count across different board positions" width="700" style="display: block; margin: 2rem auto;"/>
