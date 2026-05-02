@@ -885,7 +885,7 @@ If the `static_eval` minus a massive safety margin is *still* higher than the Be
 // Static NMP (Reverse Futility Pruning)
 // Only safe if we aren't already at the very end of our search
 if (ply < limit && !is_check) {
-    int margin = 2000;
+    int margin = 150;
     if (static_eval - margin >= beta) {
         return static_eval; // Prune!
     }
@@ -909,8 +909,8 @@ WHERE id IN (
     SELECT id FROM frontier_nodes
     WHERE is_check = 0 
     AND (
-        (active_turn = 1 AND static_eval - 2000 >= loopBeta) OR
-        (active_turn = -1 AND static_eval + 2000 <= loopAlpha)
+        (active_turn = 1 AND static_eval - 150 >= loopBeta) OR
+        (active_turn = -1 AND static_eval + 150 <= loopAlpha)
     )
 );
 
