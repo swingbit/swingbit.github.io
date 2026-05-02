@@ -1015,7 +1015,7 @@ await db.query(sql);
 </details>
 
 
-## The Catch-22 of SQL Parallelisation
+## The Parallelisation Paradox
 
 When I first envisioned Quack-Mate, my grandest hope was built on a naive assumption: if I represent move generation as a massive set-based `JOIN` operation, a modern analytical engine like DuckDB would automatically scale it across all available CPU cores. I imagined throwing 16 or 32 threads at the engine and watching it effortlessly obliterate the combinatorial explosion.
 
@@ -1053,7 +1053,7 @@ This naturally begs another question: *what if we compromise and generate 2 or 3
 
 The math, unfortunately, tells us that this is a losing trade. Adding CPU cores scales processing power *linearly* (e.g., a massive 16x boost in throughput). However, the branching factor of chess is roughly 30. Losing pruning granularity for just two plies means generating 30 × 30 = 900 times more nodes in that specific branch. A 16x linear boost in hardware throughput can *never* outrun a 900x exponential explosion in generated garbage. You end up relying on hardware to violently tear through millions of terrible positions that a 1-core engine, using tight 1-ply pruning queries, would have skipped entirely. 
 
-This is the ultimate Catch-22 of SQL chess: to saturate modern analytical CPU cores, you must feed the engine massive, unpruned queries. But to survive the combinatorial explosion of chess, you absolutely *must* aggressively prune the tree, which forces the database into a microscopic, sequential, and highly "chatty" workload that leaves your extra threads starved and useless.
+This is the ultimate paradox of SQL chess: to saturate modern analytical CPU cores, you must feed the engine massive, unpruned queries. But to survive the combinatorial explosion of chess, you absolutely *must* aggressively prune the tree, which forces the database into a microscopic, sequential, and highly "chatty" workload that leaves your extra threads starved and useless.
 
 **How Do Classical Engines Solve This?**
 It is worth noting that classical, imperative chess engines (written in C, C++, or Rust) face a similar conceptual challenge: Alpha-Beta pruning is inherently sequential. However, they bypass the parallelisation bottleneck using an architecture called **Lazy SMP** (Symmetric Multiprocessing). Instead of trying to parallelise the inner *loops* of move generation, classical engines simply spawn 16 entirely independent search threads. Each thread searches the exact same game tree simultaneously, but with slightly different random noise or move-ordering heuristics. They don't explicitly coordinate; instead, they asynchronously dump their evaluations into a massive, shared lockless hash map in RAM (the Transposition Table). If Thread A finds a brilliant pruning refutation, it drops it in the hash map, and Thread_B instantly reads it nanoseconds later to prune its own branch. 
