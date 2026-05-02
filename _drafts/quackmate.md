@@ -871,7 +871,9 @@ The heuristics above all serve a single purpose: deciding *in which order* to se
 
 ### Pruning: Static Null Move - a.k.a. Reverse Futility Pruning (RFP)
 
-Sometimes, a position's static evaluation is so overwhelmingly winning that even if we gave our opponent a completely "free turn" (a null move), they *still* couldn't bring the score back within the Alpha-Beta window.
+The concept of a "Null Move" is a cornerstone of chess engine optimization. The intuition is simple: if you are so overwhelmingly winning that you could literally skip your turn (a "null move") and *still* be winning, you don't need to waste time searching that branch. 
+
+While standard **Null Move Pruning (NMP)** actually executes this "skipped turn" and searches the resulting tree to prove the win, **Static Null Move Pruning (RFP)** takes a faster, purely mathematical shortcut. Instead of performing a search, it simply looks at the **Static Evaluation** of the current board. It assumes that if the current score is significantly higher than the Beta threshold—even after subtracting a conservative "safety margin" to account for the opponent's next move—then the branch is a guaranteed win and can be pruned immediately without any further analysis.
 
 #### The Imperative Approach
 Before generating any legal moves, the engine takes a quick look at the static evaluation to see if it's overwhelmingly winning.
@@ -1012,15 +1014,6 @@ await db.query(sql);
 ```
 </details>
 
-
-
-## The SQL Engine in Action
-
-Before diving into the complexities of parallelisation, it is worth pausing to see the culmination of all these techniques. Here is the DuckDB native engine (using BPVS and 1 Thread at Depth 3) playing a game against itself through the browser interface:
-
-![Quack-Mate UI demo in action: Two DuckDB engines playing each other.](/assets/videos/quackmate_demo.webp)
-
-As the game unfolds, the Javascript orchestrator furiously fires perfectly bounded 1-ply SQL queries at the database, while the right-hand inspection panel streams the live execution logs. Even restricted to a single thread per engine, the performance is remarkably stable. Both sides evaluate their moves in an average of 1.4 seconds. More importantly, they each evaluate an average of only ~1,050 nodes per move—a massive reduction from the 8,902 un-pruned leaf node combinations mathematically possible at depth 3. The SQL-based Alpha-Beta pruning is actively saving the database from an avalanche of useless calculations.
 
 ## The Catch-22 of SQL Parallelisation
 
