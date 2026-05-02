@@ -1015,50 +1015,25 @@ await db.query(sql);
 </details>
 
 
-## The Parallelisation Paradox
 
-When I first envisioned Quack-Mate, my grandest hope was built on a naive assumption: if I represent move generation as a massive set-based `JOIN` operation, a modern analytical engine like DuckDB would automatically scale it across all available CPU cores. I imagined throwing 16 or 32 threads at the engine and watching it effortlessly obliterate the combinatorial explosion.
+## The Granularity Paradox: Throughput vs. Pruning
 
-The reality was a harsh lesson in the fundamental differences between OLAP workloads and adversarial game trees. Not only did adding cores fail to speed up Quack-Mate, but in many configurations, *more threads actually hurt performance*. This paradox breaks down into three core issues:
+There is a fundamental conflict at the heart of Quack-Mate. To make a database fast, you want to feed it massive amounts of data at once (**High Throughput**). But to make a chess engine fast, you want to look at as little data as possible (**High Pruning**). 
 
-**1. The Vectorisation Threshold & Synchronisation Barriers**
-DuckDB is a vectorised database; it processes data in strict chunks (typically 2,048 rows at a time) and assigns these chunks to threads in its pool. At search depths of 1 or 2, there simply aren't enough valid chess moves to fill more than a single vector chunk. Even at depth 3 (the 8,902 leaf nodes of the starting position), the engine only generates enough valid rows to fill 4 or 5 chunks. 
+### 1. The "Chatty" Overhead
+This creates a **Granularity Paradox**. DuckDB is an analytical engine built for "Big Data," but Alpha-Beta pruning is inherently "Small Data." To keep the search smart, we must fire hundreds of "micro-queries" that only process 40 or 50 moves at a time. This "chattiness" means the engine spends a significant portion of its time on query initialization and planning rather than actual calculation.
 
-Crucially, DuckDB evaluates `WITH RECURSIVE` queries (and repeated BPVS queries) using step-by-step synchronisation barriers. The database must finish calculating an entire iteration (depth level), merge the delta into a temporary table, and force all threads to wait at a barrier before starting the next depth. Because calculating bitwise math on a small chunk of rows takes nanoseconds, assigning these microscopic workloads across multiple threads is wildly inefficient. The active threads spend significantly more time spinning up, acquiring locks, and waiting at these synchronisation barriers than they do actually evaluating the bitboards. This is why at depths 1 through 3, adding even 2 or 3 threads makes the engine actively slower than a single, sequential thread blasting through the vectors without any lock contention.
+### 2. The Scaling Wall
+This granularity is also why **parallelisation fails**. Because the individual workloads are so small, adding more CPU cores is often counter-productive; the system spends more time managing synchronization barriers and thread locks than it does evaluating bitboards. 
 
-The natural thought is: *why not just search to depth 4, 5, or 6, where the tree explodes into millions of rows, to finally saturate all 16 cores and overcome the synchronisation overhead?*
+We cannot "fill the cores" by searching deeper in a single query, either. CPU cores scale **linearly** (16x), but the chess tree branches **exponentially** (30x per ply). Skipping pruning for even one ply to saturate the hardware generates 30x more garbage nodes—a trade-off that always loses.
 
-The answer depends on whether you use the elegant Recursive CTE or the pragmatic Batched PVS approach, and both paths hit different, equally impenetrable walls:
+### 3. ACID vs. Speed
+Classical engines (C++, Rust) bypass sequential bottlenecks using **Lazy SMP**—independent search threads that share a lockless hash map in RAM. SQL databases, designed for **ACID integrity**, cannot do this. They must synchronize concurrent writers to protect data consistency. In a relational engine, 16 threads attempting to update the same table simultaneously would simply queue up at the database lock level, running no faster than a single thread.
 
-**2. The Recursive CTE Memory Wall**
-If you attempt to reach depth 4 or 5 using the single-query `WITH RECURSIVE` strategy, you will indeed generate enough rows to fully saturate the CPU. However, a recursive CTE fundamentally evaluates the tree "Breadth-First," meaning it is practically incapable of leveraging Alpha-Beta pruning. Because it explores every brilliant and terrible line equally, the tree mathematically explodes.
+**Quack-Mate’s solution is an uneasy compromise:** 
+We land in a technical "no-man’s land." We pay a high price in **throughput** because of the SQL query overhead, and we pay a price in **intelligence** because batching prevents the pixel-perfect pruning of a true Depth-First search. Quack-Mate doesn’t "solve" the paradox so much as it survives it. By focusing on a single, high-speed sequential thread and carefully tuned batches, we find a narrow path that allows a relational database to behave like a chess engine—even if it has to fight its own architecture at every ply.
 
-More importantly, a single recursive SQL query is an **atomic memory operation**. DuckDB must maintain the entire execution state, including all intermediate working tables for all depth levels, in its internal buffers until the query completes. At Depth 5, this represents millions of rows that cannot be cleared.
-
-Even the simplest BPVS configuration (which is just Iterative Deepening without pruning) bypasses this wall. Because it uses a Javascript loop to fire discrete SQL queries, each query is a separate transaction. Between iterations, we physically `DELETE` rows from the `search_tree`, forcing the database to compact and reuse memory pages. This "sharded" lifecycle allows the engine to reach depths that would otherwise crash the database.
-
-**3. The Alpha-Beta Sequential Bottleneck**
-To make depth 4 and 5 actually reachable without crashing the database, I had to abandon the pure recursive approach for **BPVS**. This strategy relies heavily on Alpha-Beta pruning, which is inherently *sequential*. To structurally prune terrible branches, the engine must plunge *Depth-First* down the most promising paths to quickly establish an Alpha/Beta threshold score.
-
-To mimic this in SQL, the BPVS orchestrator deliberately shards "sibling moves" into Progressive Batches. We evaluate a tiny batch (like the single PV move, or the top 3 tactical moves), update the pruning threshold, and use that threshold to brutally discard the millions of useless descendants lurking in the *next* batch. 
-
-This creates a severe scaling bottleneck. Because a small batch generating immediate descendants in a single ply might only spawn a few hundred new board states across the frontier, the resulting workload is often too small to fill even a single DuckDB vector chunk (which standardly requires 2,048 rows). Consequently, the engine is effectively single-threaded during these targeted expansion queries. Testing confirms this: while adding a second thread provides a minor boost by handling background house-keeping, pumping in 8 or 16 threads is purely counter-productive. The system spends significantly more time on thread synchronisation and barrier management than it does actually evaluating the bitboards. 
-
-You might wonder why we don't simply force the database to process thousands of moves at once to finally saturate those threads. Since a chess position rarely has more than 40-50 legal moves, simply increasing the horizontal batch size won't work—the moves literally don't exist. The only way to generate thousands of rows for a single parent is to look multiple *plies* ahead simultaneously (e.g., generating all depth 2 children in one query). But this returns us to the pruning trade-off: if you generate deeper moves without pausing to update your Alpha bound between them, you lose the ability to prune. You end up using 16 threads to violently calculate thousands of garbage positions that a single-threaded engine, with a tighter feedback loop, would have skipped entirely. 
-
-As a fun aside, initially forcing DuckDB to run multi-threaded BPVS natively ballooned its RAM footprint and crashed the browser. By default, DuckDB guarantees that output rows are returned in the exact order they were inserted. This means that if Thread 3 finishes calculating its chunk of the game tree faster than Thread 2, it *cannot* output the rows yet—it must stubbornly buffer them in memory until Thread 2 catches up. In a WebAssembly browser environment strictly constrained to a 4GB memory limit, this chaotic intermediate buffering overhead reliably causes the engine to suffer an Out-of-Memory crash when using exactly 3 threads (where the chunk distribution happens to mismatch badly) at depth 6. You must explicitly configure the database with `PRAGMA preserve_insertion_order=false;` to allow the threads to dump their arrays instantly!
-
-**The Multi-Ply Compromise?**
-This naturally begs another question: *what if we compromise and generate 2 or 3 plies per SQL query instead of just 1?* We could use nested `JOIN`s to generate deeper sub-trees for a batch, sacrificing some fine-grained pruning but finally generating enough rows to saturate 16 threads. 
-
-The math, unfortunately, tells us that this is a losing trade. Adding CPU cores scales processing power *linearly* (e.g., a massive 16x boost in throughput). However, the branching factor of chess is roughly 30. Losing pruning granularity for just two plies means generating 30 × 30 = 900 times more nodes in that specific branch. A 16x linear boost in hardware throughput can *never* outrun a 900x exponential explosion in generated garbage. You end up relying on hardware to violently tear through millions of terrible positions that a 1-core engine, using tight 1-ply pruning queries, would have skipped entirely. 
-
-This is the ultimate paradox of SQL chess: to saturate modern analytical CPU cores, you must feed the engine massive, unpruned queries. But to survive the combinatorial explosion of chess, you absolutely *must* aggressively prune the tree, which forces the database into a microscopic, sequential, and highly "chatty" workload that leaves your extra threads starved and useless.
-
-**How Do Classical Engines Solve This?**
-It is worth noting that classical, imperative chess engines (written in C, C++, or Rust) face a similar conceptual challenge: Alpha-Beta pruning is inherently sequential. However, they bypass the parallelisation bottleneck using an architecture called **Lazy SMP** (Symmetric Multiprocessing). Instead of trying to parallelise the inner *loops* of move generation, classical engines simply spawn 16 entirely independent search threads. Each thread searches the exact same game tree simultaneously, but with slightly different random noise or move-ordering heuristics. They don't explicitly coordinate; instead, they asynchronously dump their evaluations into a massive, shared lockless hash map in RAM (the Transposition Table). If Thread A finds a brilliant pruning refutation, it drops it in the hash map, and Thread_B instantly reads it nanoseconds later to prune its own branch. 
-
-Quack-Mate cannot replicate Lazy SMP because DuckDB (like most analytical databases) uses a strict concurrency model designed to protect data integrity: infinite concurrent readers, but heavily synchronised concurrent *writers*. If we spawned 16 massive independent BPVS searches simultaneously, they would aggressively bottleneck at the database's Write-Ahead Log (WAL) while attempting to `UPSERT` into the same Transposition Table. The threads would queue up at the database lock level, running no faster than 1 thread, but now saddled with crippling transaction overhead. Classical engines scale because they can directly mutate raw, lockless bytes in RAM—a luxury SQL databases structurally deny by design.
 
 ## Benchmarking the SQL Optimisations
 
@@ -1187,6 +1162,16 @@ The JS reference engine makes the BFS tax visible in raw numbers. With the full 
 The SQL engine's fully-optimised `+ LMR` configuration evaluates approximately **149,700**, **2,398,000**, **355,800**, and **35,200** nodes respectively — between **15× and 400× more** than the JS reference on the same positions.
 
 This gap is inherent to BFS. A recursive engine updates its Alpha bound the instant a move completes, immediately shrinking the search window for every subsequent sibling. A batch-based SQL engine evaluates a full batch of 4 moves first, updates Alpha only at the batch boundary, and then re-prunes. Between each of those update points, the engine is flying blind, evaluating subtrees that a DFS would have already cut. The gap is not a bug — it is the fundamental trade-off of computing in a relational data model.
+
+### Beyond Single-Threading: The Scaling Wall
+
+This brings us back to the question of hardware: can we simply throw more CPU cores at this BFS overhead to narrow the gap?
+
+On highly complex boards (like the tactical **KiwiPete** or **Complex Mid-game** positions), where the branching factor is dense enough to saturate more vector chunks, DuckDB can actually find some breathing room. Benchmarks show a modest **15-20% speedup** when moving from 1 to 8 threads on these dense positions.
+
+However, the **Scaling Wall** is always lurking. Once the board simplifies into an endgame, or once we throw *too* many threads at the problem, the overhead of synchronization and barrier management begins to eat those gains alive. As the plot below shows, throwing 16 cores at a problem that barely fills a single vector chunk is a recipe for diminishing returns.
+
+<img src="/assets/images/quackmate_threads.png" alt="Plot showing search time scaling by thread count across different board positions" width="700" style="display: block; margin: 2rem auto;"/>
 
 **The SQL Engine Punches Through the Overhead**
 That said, the raw volume of data processed by the SQL engine deserves respect. During the Complex Mid-game search, the fully-optimised SQL engine evaluates 2.4 million nodes and completes in around 64 seconds on a machine also hosting a live DuckDB instance and a Node.js bridge. On the Endgame, it finishes in roughly 4 seconds. The SQL execution engine — DuckDB's vectorised query pipeline — is driving through millions of board states per second, doing all of its bitwise attack detection, legality checking, and minimax scoring **entirely in SQL**, with zero row-by-row callbacks into JavaScript until the final scalar result. For a system built entirely on general-purpose analytical SQL, this is genuinely impressive raw throughput.
