@@ -1157,11 +1157,16 @@ The most important finding comes first. Across three of the four positions, the 
 This is a non-trivial result. It means that the batch-based BFS search, with its approximate pruning and relational overhead, does not systematically distort the evaluation. The engine is not just fast-enough-to-be-playable; it is navigating the search space correctly.
 
 **The True Cost of BFS: Reading the Node Counts**
-The JS reference engine makes the BFS tax visible in raw numbers. With the full set of optimisations, the JS engine evaluates roughly **3,800 nodes** on the Start Position, **6,200** on the Complex Mid-game, **9,300** on KiwiPete, and **2,100** on the Endgame. These are the node counts a recursive DFS achieves with tight, sequentially-updated Alpha-Beta bounds.
+The JS reference engine makes the "Intelligence Tax"—the extra work our batch-based SQL search performs compared to a perfect sequential search—visible in raw numbers. With the full set of optimisations, the JS engine evaluates roughly **4K nodes** on the Start Position, **6K** on the Complex Mid-game, **9K** on KiwiPete, and **2K** on the Endgame. These are the node counts a recursive DFS achieves with tight, sequentially-updated Alpha-Beta bounds.
 
-The SQL engine's fully-optimised `+ LMR` configuration evaluates approximately **149,700**, **2,398,000**, **355,800**, and **35,200** nodes respectively — between **15× and 400× more** than the JS reference on the same positions.
+The SQL engine's fully-optimised `+ LMR` configuration evaluates approximately **150K**, **2.4M**, **350K**, and **35K** nodes respectively. The price we pay for a less fine-grained pruning implementation is precisely the difference between these two columns: between **15× and 400× more nodes** than the JS reference on the same positions.
 
-This gap is inherent to BFS. A recursive engine updates its Alpha bound the instant a move completes, immediately shrinking the search window for every subsequent sibling. A batch-based SQL engine evaluates a full batch of 4 moves first, updates Alpha only at the batch boundary, and then re-prunes. Between each of those update points, the engine is flying blind, evaluating subtrees that a DFS would have already cut. The gap is not a bug — it is the fundamental trade-off of computing in a relational data model.
+This gap is inherent to the batch-based search model. A recursive engine updates its Alpha bound the instant a move completes, immediately shrinking the search window for every subsequent sibling. A batch-based SQL engine evaluates a full batch of 4 or 8 moves first, updates Alpha only at the batch boundary, and then re-prunes. Between each of those update points, the engine is "flying blind," evaluating subtrees that a sequential DFS would have already cut.
+
+#### The "Search Instability" Outlier
+Position 2 (Complex Mid-game) provides a fascinating cautionary tale. While most optimizations shrink the tree, adding **Forward Futility Pruning (FFP)** in this specific position caused the node count to explode from **68K** (under the `+ RFP` config) to over **3.6M**. This is a classic case of **Search Instability**: by pruning a quiet move that was actually a critical refutation, the engine was forced to waste millions of nodes searching tactical "ghosts" that should have been pruned. 
+
+Ironically, this is also why Position 2 benefits the most from multi-threading in our benchmarks (as we will see in the following section). It is the only case where the engine generates enough "garbage nodes" to finally saturate all 16 CPU cores. It is a stark reminder that in chess, the most "efficient" engine is often the one that stays smart enough to stay single-threaded.
 
 ### Beyond Single-Threading: The Scaling Wall
 
