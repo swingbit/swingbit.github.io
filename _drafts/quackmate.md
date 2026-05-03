@@ -100,7 +100,7 @@ To look into the future, the engine must systematically generate all possible ne
 While modern engines don't naively loop over all 64 squares, they *do* iterate piece-by-piece.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 They grab the bitboard for a specific piece type (like Knights), use hardware instructions to find the first set bit (the square the piece is on), and then loop over its pre-calculated "mobility mask"—a bitboard showing every legally reachable square from that position regardless of whether an enemy piece is there or not—to generate moves.
 
@@ -129,7 +129,7 @@ while (knights) {
 Generating next moves isn't done piece-by-piece; it's a massive, concurrent `JOIN` operation. 
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 We pre-compute these masks for every piece on every square and store them as two static lookup tables: `mobility_precomputed` (showing where a piece can legally move) and `attacks_precomputed` (a separate table necessary specifically for Pawns, which move forward but capture diagonally). We explode the current game state out into all its pieces and join them with the pre-computed mobility tables to instantly spawn rows for every possible pseudo-legal continuation for *all* pieces simultaneously.
 
@@ -175,7 +175,7 @@ Chess rules forbid making a move that leaves your own King under attack. "Pseudo
 Modern engines use fast bitwise math on the *current* board state to check legality, rather than making and un-making moves.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 While older or simpler engines might literally "make the move, check if the king is attacked, take it back," this is way too slow for a modern engine. Modern engines pre-calculate an "absolute pin mask" for pieces defending the king and evaluate if a proposed move violates a pin or places the King onto an attacked square, usually doing this validation lazily right before the move is searched.
 
@@ -201,7 +201,7 @@ bool is_legal(Board board, Move move) {
 Quack-Mate embraces the brute force of set theory by applying all moves simultaneously and then filtering the illegal ones via a "backwards" attack check.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 Calculating absolute pin masks dynamically in pure SQL is agonisingly inefficient. Instead, we skip the messy pre-validation entirely and simply *apply* all pseudo-legal moves (via our ultra-fast bitwise XORs) to spawn a massive CTE of `expanded_states`, and then we filter the illegal boards out.
 
@@ -243,7 +243,7 @@ A simple sum of all material and PST values (positive for white, negative for bl
 Historically, static evaluation functions looped over an array representation of the board, summing up the material and PST values corresponding to the piece at each square.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 An imperative *bitboard* engine provides a **massive constant-factor speedup** by using hardware `popcount` instructions (which instantly count how many bits are set to 1) to sum up material, and `pop_lsb` loops to apply Piece-Square Table (PST) bonuses for positional placement. Modern world-champion engines like Stockfish, however, go infinitely further: they evaluate complex heuristics like pawn structures and king safety, and increasingly rely on efficiently updatable neural networks (NNUE) to score the board state holistically.
 
@@ -277,7 +277,7 @@ return score;
 Quack-Mate's evaluation is purely mathematical and set-based, leveraging DuckDB’s ability to process massive board sets simultaneously.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 Integrating a neural network or complex pawn-structure algorithms into a single recursive SQL query is practically impossible without crushing performance. Therefore, Quack-Mate's evaluation remains set-based (the classic Material + PST approach). The SQL engine accomplishes this via a correlated subquery: for each board row, it pivots the 12 bitboard columns into 12 distinct rows on the fly using a `VALUES` table. The engine then performs a single set-based `JOIN` of this massive intermediate set against the pre-computed Piece-Square Table, effortlessly summing up both the material weight and positional bonuses.
 
@@ -316,7 +316,7 @@ The most elegant part of this pure SQL experiment is the "Recursive Strategy". I
 In an imperative language, a minimax function calls itself recursively to explore the game tree. 
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 Every level in this tree represents a "ply" (a single half-move by either White or Black). At each ply, the algorithm swaps sides and assumes that the player whose turn it is will play perfectly to maximise their own advantage. When the search hits the maximum depth limit, it evaluates the board and recursively bubbles those static scores back up.
 
@@ -354,7 +354,7 @@ int minimax(Board node, int depth, bool is_white_turn) {
 This approach maps almost directly to a `WITH RECURSIVE` CTE, where the recursion is handled by the database engine.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 The structural translation is beautiful, mapping perfectly from an imperative Minimax algorithm into the language of relational sets. By using a `GROUP BY parent_id` combined with an aggregate `MAX()` or `MIN()`, SQL effortlessly handles the bubbling up of minimax scores across millions of branches simultaneously.
 
@@ -473,7 +473,7 @@ Pruned Sub-tree"):::prunedNode
 <br/>
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand a more intuitive explanation of alpha-beta pruning</summary>
+<summary class="tech-detail">💡 Click to expand a more intuitive explanation of alpha-beta pruning</summary>
 
 To understand this more intuitively, imagine you are shopping for a new house with a very picky partner:
 
@@ -521,7 +521,7 @@ It is crucial to distinguish **Move Ordering Scores** from the **Static Evaluati
 Before diving down into the search tree, engines generate a list of legal moves and assign each a quick `ordering_score`. 
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 While this score can sometimes incorporate the current static evaluation as a baseline, it relies heavily on move-specific heuristics, such as prioritizing moves that capture a high-value piece using a low-value piece (MVV-LVA). A modern engine combines several of these heuristics to calculate a move's score, then sorts the move array.
 
@@ -552,7 +552,7 @@ sort_moves_by_score(moves, move_scores);
 In our BPVS approach, move ordering is handled via SQL Window Functions to rank sibling moves.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 We compute an estimated score for each generated move row based on a strict layering of heuristics: Transposition Table hits, Captures (MVV-LVA), Checks, and Killer Moves. Finally, as a fallback for "quiet moves," we use History scores. We use `ROW_NUMBER()` partitioned by the parent board state to rank these sibling moves. Our pipeline then processes the most promising moves first in a "Principal Variation" batch, aggressively establishing a high Alpha threshold to prune the subsequent batches.
 
@@ -590,7 +590,7 @@ The PVS algorithm searches this first expected "best move" with a standard, wide
 
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 The engine assumes that sibling moves are worse than the PV. We can prove this quickly by searching them with a "zero window" (where `alpha` and `beta` are identical). A zero-window search is incredibly fast because almost every branch is instantly pruned. If it somehow proves it's better, we must re-search that move with a full window to find its true score.
 
@@ -632,7 +632,7 @@ int pvs(Board node, int ply, int limit, int alpha, int beta) {
 This is where the "Batched" in BPVS comes in to save the day. In a traditional engine, you search moves sequentially, one by one. In SQL, searching 30 moves sequentially means 30 round-trips to the database, which is cripplingly slow. However, if you shove all 30 remaining moves into a single SQL query, you cannot update your Alpha-Beta thresholds *between* them, rendering your pruning useless. We need a compromise. 
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 We split the search into two distinct phases:
 1.  **The Principal Variation (PV):** We search only the single most promising move (`rank = 1`) representing the best-guess path for every parent. We search this relatively tiny set of moves at full depth with a full-window to quickly establish strong `alpha` and `beta` thresholds.
@@ -668,7 +668,7 @@ The most effective way to trigger early alpha-beta cutoffs is to search the most
 Engines prioritize captures by assigning them a score based on the value of the piece being taken versus the piece doing the attacking.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 A pawn taking a queen is almost always better than a queen taking a pawn. By searching these high-leverage captures first, the search window narrows rapidly, allowing the engine to prune the rest of the move list much sooner.
 
@@ -686,7 +686,7 @@ if (is_capture(m)) {
 In SQL, we calculate the MVV-LVA score for all captures simultaneously using a simple CASE expression within our ordering window function.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 Because we've already identified the piece types during our join-based move generation, calculating the capture priority is a trivial bit of arithmetic that applies instantly across the entire batch of candidate moves.
 
@@ -723,7 +723,7 @@ Where engines diverge is how they *store* and enforce this rule.
 Engines use a blazing-fast 64-bit Zobrist Hash as the primary key in a massive, painstakingly pre-allocated memory map.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 This memory map (Transposition Table) lives in raw RAM and must be carefully protected by complex read/write locks during multi-threaded searches. The golden rule is that an engine will *never* let a shallow, low-quality evaluation overwrite a deep, high-quality evaluation in the cache.
 
@@ -748,7 +748,7 @@ transposition_table[zobrist_hash] = {remaining_depth, score, best_move};
 In SQL, memory management and hash-mapping are abstracted away into a simple database table.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 While traditional engines use the TT for both Pruning and Move Ordering, **Quack-Mate strictly uses it only for Move Ordering.** This is due to a fundamental cost-benefit asymmetry: in C++, checking a hash table in RAM is virtually free (nanoseconds), while the search it avoids is expensive. In a database, however, a `JOIN` with a million-row table is a heavy operation. Because "Total Pruning" only succeeds when the cached entry was searched at a greater or equal depth—which is mathematically rare—the aggregate overhead of joining with the TT to ask "can I skip this branch?" actually exceeded the cost of simply performing the search itself. By using the TT strictly for **Move Ordering**, we pay the join tax once to find the single best candidate move. This ensures our PVS batches trigger early Alpha-Beta cutoffs, while leaving the actual pruning to the raw, vectorised throughput of the database engine.
 
@@ -784,7 +784,7 @@ Suppose we are exploring different ways to respond to our opponent. If a specifi
 The engine tracks a couple of recent "killer moves" per search depth (ply). 
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 During move generation, if a standard generated move matches a stored killer move for that depth, its ordering score is artificially inflated to ensure it is searched at the very front of the list.
 
@@ -800,7 +800,7 @@ if (m == killer_moves[depth][0] || m == killer_moves[depth][1]) {
 We maintain an explicit `killer_moves` table to artificially inflate the `move_order_score`.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 When generating our `candidate_moves`, we use a correlated `EXISTS` clause to instantly add a massive numeric offset. This violently bubbles those specific rows to the very top of their respective batches, practically guaranteeing they are searched immediately after the PV node and captures! 
 
@@ -831,7 +831,7 @@ Killer Moves remember specific moves that worked well at a given depth. The **Hi
 Engines typically maintain a 2D array indexed by `[piece][to_square]` to track global move success.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 When a move causes a cutoff, its entry is incremented by a bonus proportional to the remaining search depth. Cutoffs higher up in the tree (with more remaining depth) receive a much larger bonus because they prune exponentially larger subtrees.
 
@@ -847,7 +847,7 @@ history_table[moving_piece][to_square] += importance * importance;
 The history table is a database table updated via bulk `UPSERT` after each BPVS iteration.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 The orchestrator fires an update to merge the successful moves' scores into the global `history_moves` table. During subsequent move ordering, this accumulated history score is retrieved via a simple `LEFT JOIN` and added to the ordering formula as the lowest-priority tiebreaker for quiet moves. 
 
@@ -879,7 +879,7 @@ While standard **Null Move Pruning (NMP)** actually executes this "skipped turn"
 Before generating any legal moves, the engine takes a quick look at the static evaluation to see if it's overwhelmingly winning.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 If the `static_eval` minus a massive safety margin is *still* higher than the Beta cutoff, the engine simply declares the position a win and prunes the entire branch immediately without generating a single child.
 
@@ -899,7 +899,7 @@ if (ply < limit && !is_check) {
 Quack-Mate executes this pruning natively across the entire `frontier_nodes` table simultaneously.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 This happens before triggering the expensive Move Generation JOINs. This single `DELETE` operation effortlessly vaporises thousands of branches from the tree before DuckDB ever has to calculate their complex pseudo-legal attacks. 
 
@@ -931,7 +931,7 @@ If a newly generated quiet move (not a capture, check, or promotion) results in 
 Near the search horizon, the engine discards quiet moves that result in a hopelessly bad static evaluation.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 Inside the main search loop, the engine calculates the new static evaluation of the resulting board. If it's far below our alpha threshold, it `continue`s to the next move, saving a recursive call.
 
@@ -950,7 +950,7 @@ if (ply + 2 >= limit && !is_capture && !is_check && !is_promo) {
 Quack-Mate applies FFP at *every* depth as a deliberate trade-off. 
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 We compute the new `static_eval` for millions of child nodes incrementally directly inside the `SELECT` clause, and then use a simple `WHERE` filter at the absolute bottom of the query to block hopeless nodes from ever entering the `search_tree` table.
 
@@ -976,7 +976,7 @@ Forward Futility Pruning permanently discards moves based on their *static evalu
 Instead of searching a late-ranked move at full depth, the engine intentionally searches it at a reduced depth. 
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 If this "trial" surprises the engine with a score that beats Alpha, it re-searches the branch at the correct full depth. This cautious reduction helps avoid wasting time on moves that are likely poor.
 
@@ -997,7 +997,7 @@ if (is_quiet(m) && move_index > 4 && ply + 3 <= limit) {
 In our BPVS loop, late batches are intentionally searched at an artificially lower depth.
 
 <details markdown="1">
-<summary class="tech-detail">Click to expand details</summary>
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
 Only Batch 0 is evaluated at full depth. For all subsequent batches, the Javascript orchestrator intentionally sends a SQL query asking DuckDB to calculate the board states with a lower depth. If any rows surprising beat our `alpha` threshold, they are flagged and expanded again at the correct, full depth.
 
@@ -1061,7 +1061,7 @@ To anchor the SQL results in an absolute frame of reference, the tables include 
 - **Quack-Mate JS** is an imperative JavaScript port of the same engine, implementing the same evaluation function and the full chain of optimisations (AB, TT, PST, Killers, History, RFP, FFP, LMR) in a standard recursive DFS. It is a faithful, verifiable reference: an engine that plays *identically* (same evaluation, same heuristics) but without the BFS constraint.
 - **Stockfish 18** is the world's strongest open-source chess engine. It defines the absolute ceiling.
 
-*(Disclaimer: The "Nodes" metric for the SQL engine reflects the raw internal volume of state rows inserted into our `search_tree` table across all iterative deepening passes. It is an internal performance metric, not a strict mathematical "Perft" leaf-node count. For the JS engine and Stockfish, it is the standard node count used in each respective engine.)*
+*(Disclaimer: The "Nodes" metric for the SQL engine reflects the raw internal volume of state rows inserted into our `search_tree` table across all iterative deepening passes. It is an internal performance metric, not a strict mathematical "Perft" leaf-node count. For the JS engine and Stockfish, it is the standard node count reported by their respective search loops. However, because the JS reference is a direct port using the same evaluation logic, the counts are directly comparable: each "node" represents a single board evaluation. The gap between them is the literal, quantified "Intelligence Tax" of the relational model.)*
 
 ### Board 1: Start Position
 <small><code>rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1</code></small>
