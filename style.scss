@@ -336,3 +336,38 @@ summary.tech-detail {
   // font-weight: bold;
   font-style: italic;
 }
+
+.concept-anchor {
+  margin: 2em 0.8em;
+  padding: 1.5em;
+  background: #f8f9fa;
+  border-left: 4px solid #1e90ff;
+  border-radius: 0 8px 8px 0;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+
+  .anchor-icon {
+    font-size: 2.5em;
+    margin-right: 0.6em;
+    flex-shrink: 0;
+  }
+
+  .anchor-content {
+    flex-grow: 1;
+    
+    strong {
+      display: block;
+      font-size: 1.1em;
+      margin-bottom: 0.2em;
+      color: #2f3542;
+    }
+    
+    span {
+      color: #57606f;
+      font-size: 0.95em;
+      line-height: 1.4;
+      display: block;
+    }
+  }
+}

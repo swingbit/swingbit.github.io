@@ -306,6 +306,14 @@ WHERE depth = MAX_DEPTH
 
 ## The Elegance of the Single Query: Recursive Minimax
 
+<div class="concept-anchor">
+    <div class="anchor-icon">🔄</div>
+    <div class="anchor-content">
+        <strong>The Bubble-Up:</strong> 
+        <span>A single recursive query that expands the tree, scores the leaves, and ripples the best results back to the root.</span>
+    </div>
+</div>
+
 The engine has now generated the tree of legal moves and statically evaluated the final resulting board states (the leaf nodes). To actually make a decision, these scores need to bubble back up to the root node so the engine can choose the most promising move right now, assuming best play from both sides.
 
 > In an imperative language, a minimax function calls itself recursively. In SQL, we use a `WITH RECURSIVE` Common Table Expression (CTE) to transform the entire cycle of generation, evaluation, and score propagation into one single query.
@@ -408,6 +416,14 @@ To search deep enough to play well, engines rely on **Alpha-Beta Pruning**. Conc
 
 For Alpha-Beta pruning to be effective, it inherently requires a **Depth-First Search (DFS)**. The engine must plunge down a single, promising branch all the way to the end to establish a strong "score to beat." This threshold is tracked using two mathematical bounds: **Alpha** (the minimum guaranteed score for the current player) and **Beta** (the maximum score the opponent will ever allow you to achieve). 
 
+<div class="concept-anchor">
+    <div class="anchor-icon">🛡️</div>
+    <div class="anchor-content">
+        <strong>Alpha-Beta Pruning:</strong> 
+        <span>A mathematical shortcut that exponentially reduces the search space by identifying and discarding "dead ends" before they are fully explored.</span>
+    </div>
+</div>
+
 The diagram below visualizes this process on a toy-sized search tree. Follow the sequential numbers (`[1]`, `[2]`, `[3]`, etc.) to trace the engine's exact Depth-First execution path. Because the engine plunges all the way down the left-most branch first, it establishes a high Alpha bound early. By the time it evaluates the alternative move on the right, Black immediately finds a devastating response, driving Beta below Alpha. The engine instantly cuts off the search, completely bypassing the remaining unexplored sub-tree.
 
 
@@ -499,6 +515,14 @@ Furthermore, integrating a sequential, threshold-updating logic like Alpha-Beta 
 
 To make the engine actually playable, elegance had to make way for pragmatism. I implemented a strategy called **Batched Principal Variation Search (BPVS)**. That name is quite a mouthful—we will unpack the exact mechanics of "Batched" and "Principal Variation Search" in the following sections, as they rely on advanced pruning concepts. 
 
+<div class="concept-anchor">
+    <div class="anchor-icon">🎭</div>
+    <div class="anchor-content">
+        <strong>The Puppet Master:</strong> 
+        <span>JavaScript manages the search state and depth, while DuckDB performs 100% of the heavy lifting.</span>
+    </div>
+</div>
+
 At its foundation, however, BPVS abandons the single recursive SQL query in favour of a lightweight, external Javascript loop acting as an orchestrator. This orchestrator contains no chess logic; its sole responsibility is to track the search state and execute a standard chess technique called **Iterative Deepening**.
 
 Instead of telling DuckDB to search directly to Depth N, the Javascript orchestrator runs a series of discrete searches: Depth 1, then restarting from the root to reach Depth 2, then restarting again for Depth 3, and so on. This might sound incredibly wasteful—why throw away the tree and start over?—but it solves two massive problems:
@@ -513,9 +537,17 @@ It is this "fresh map" that makes Iterative Deepening the crucial prerequisite f
 
 ### The Pruning Prerequisite: Move Ordering
 
+<div class="concept-anchor">
+    <div class="anchor-icon">⚖️</div>
+    <div class="anchor-content">
+        <strong>Move Ordering:</strong> 
+        <span>The art of "guessing" the best moves first to trigger early Alpha-Beta cutoffs and shrink the search tree.</span>
+    </div>
+</div>
+
 If an engine happens to search the best moves first, it can mathematically prove that certain other branches don't need to be searched at all (this is Alpha-Beta pruning). Guessing which moves will be the best *before* actually searching them is the secret to a fast engine, and the cornerstone of our BPVS approach. 
 
-It is crucial to distinguish **Move Ordering Scores** from the **Static Evaluation** discussed previously. Static Evaluation is a deep, mathematically rigorous judgement of the final board state *at the very end* of a search branch. Move Ordering, conversely, is a "quick and dirty" heuristic applied *before* searching. Its sole job is to guess which moves are the most promising so the engine can search them first. 
+It is crucial to distinguish **Move Ordering Scores** from the **Static Evaluation** discussed previously. Static Evaluation is a deep, mathematically rigorous judgement of the final board state *at the very end* of a search branch. Move Ordering is a "quick and dirty" heuristic applied *before* searching. Its sole job is to guess which moves are the most promising so the engine can search them first. 
 
 #### The Imperative Approach
 Before diving down into the search tree, engines generate a list of legal moves and assign each a quick `ordering_score`. 
@@ -582,6 +614,14 @@ FROM candidate_moves
 Let's take a deep dive into the specific techniques integrated to squeeze every drop of performance out of the engine, and how the conceptual leap from arrays to tables is made.
 
 ### Principal Variation Search (PVS) & Alpha-Beta Pruning
+
+<div class="concept-anchor">
+    <div class="anchor-icon">🔭</div>
+    <div class="anchor-content">
+        <strong>PVS (Principal Variation Search):</strong> 
+        <span>A high-stakes gamble that the first move we search is the best, allowing us to search everything else with a faster "zero-window" test.</span>
+    </div>
+</div>
 
 While standard Alpha-Beta pruning is the mathematical foundation of modern chess engines, Quack-Mate skips implementing it directly and instead relies exclusively on a more advanced variant called **Principal Variation Search (PVS)**. As we will see later, this is not just an optimisation, but a structural necessity for the database architecture. The core premise of PVS is that if our move ordering is good, the very first move we examine (the Principal Variation, or PV) is highly likely to be the best. 
 
@@ -662,6 +702,14 @@ This is why PVS is a structural necessity for SQL. By evaluating the remaining s
 
 ### Move Ordering: Most Valuable Victim - Least Valuable Attacker (MVV-LVA)
 
+<div class="concept-anchor">
+    <div class="anchor-icon">⚔️</div>
+    <div class="anchor-content">
+        <strong>MVV-LVA:</strong> 
+        <span>Prioritizes "violent" moves—capturing the most valuable enemy pieces with your least valuable ones.</span>
+    </div>
+</div>
+
 The most effective way to trigger early alpha-beta cutoffs is to search the most "violent" moves first. MVV-LVA (Most Valuable Victim - Least Valuable Attacker) is a simple but devastatingly effective heuristic for ordering captures: it prioritizes capturing the most valuable enemy pieces using your least valuable ones.
 
 #### The Imperative Approach
@@ -703,6 +751,14 @@ ORDER BY (
 </details>
 
 ### (Move Ordering:) Transposition Tables (TT)
+
+<div class="concept-anchor">
+    <div class="anchor-icon">🧠</div>
+    <div class="anchor-content">
+        <strong>Collective Memory:</strong> 
+        <span>A global cache that ensures the engine never evaluates the same board position twice.</span>
+    </div>
+</div>
 
 In chess, many different sequences of moves can lead to the exact same board position (a transposition). Without memory, an engine will stupidly re-evaluate the same position millions of times. A Transposition Table (TT) solves this by acting as a global cache. 
 
@@ -778,6 +834,14 @@ WHERE EXCLUDED.depth >= transposition_table.depth;
 
 ### Move Ordering: Killer Move Heuristic
 
+<div class="concept-anchor">
+    <div class="anchor-icon">🎯</div>
+    <div class="anchor-content">
+        <strong>Killer Moves:</strong> 
+        <span>Remembers specific quiet moves that successfully caused a refutation in sibling branches.</span>
+    </div>
+</div>
+
 Suppose we are exploring different ways to respond to our opponent. If a specific "quiet" move (like a solid knight jump that doesn't capture anything) proves to be devastating in one variation, it is highly likely to be a devastating response in similar variations too. This is known as a "killer move."
 
 #### The Imperative Approach
@@ -825,6 +889,14 @@ JOIN possible_moves m ...
 
 ### Move Ordering: History Heuristic
 
+<div class="concept-anchor">
+    <div class="anchor-icon">📜</div>
+    <div class="anchor-content">
+        <strong>History Heuristic:</strong> 
+        <span>Learns global strategic trends by tracking which (piece, square) combinations consistently succeed.</span>
+    </div>
+</div>
+
 Killer Moves remember specific moves that worked well at a given depth. The **History Heuristic** takes a broader view: it maintains a global score for every `(piece, destination_square)` combination across the entire search. Every time a move causes a Beta cutoff (a pruning success), its history score is incremented. Over time, the history table learns that, say, "a Knight landing on d5 tends to be a strong move" regardless of the surrounding context.
 
 #### The Imperative Approach
@@ -865,15 +937,25 @@ ON CONFLICT (piece, to_sq) DO UPDATE SET score = history_moves.score + EXCLUDED.
 ```
 </details>
 
-### Pruning
+### Aggressive Heuristics: The Art of Lossy Pruning
 
-The heuristics above all serve a single purpose: deciding *in which order* to search moves. But once our move ordering is strong, we can go further and ask a more aggressive question: *can we skip searching certain moves entirely?* The following techniques are **lossy pruning strategies**—they risk missing a good move in exchange for massive search speed. Unlike Alpha-Beta (which is mathematically safe), these techniques can occasionally cause the engine to overlook a brilliant move. The trade-off is almost always worth it.
+<div class="concept-anchor">
+    <div class="anchor-icon">✂️</div>
+    <div class="anchor-content">
+        <strong>The Lossy Edge:</strong> 
+        <span>A collection of aggressive heuristics that trade mathematical certainty for massive search speed—pruning moves that are "probably" bad.</span>
+    </div>
+</div>
 
-### Pruning: Static Null Move - a.k.a. Reverse Futility Pruning (RFP)
+The heuristics above all serve a single purpose: deciding *in which order* to search moves. But once our move ordering is strong, we can go further and ask a more aggressive question: *can we skip searching certain moves entirely?* 
+
+The following techniques are **lossy pruning strategies**—they risk missing a good move in exchange for massive search speed. Unlike Alpha-Beta (which is mathematically safe), these techniques can occasionally cause the engine to overlook a brilliant move or "ghost" a tactical refutation. The trade-off, however, is almost always worth it.
+
+### Heuristic: Static Null Move Pruning - a.k.a. Reverse Futility Pruning (RFP)
 
 The concept of a "Null Move" is a cornerstone of chess engine optimization. The intuition is simple: if you are so overwhelmingly winning that you could literally skip your turn (a "null move") and *still* be winning, you don't need to waste time searching that branch. 
 
-While standard **Null Move Pruning (NMP)** actually executes this "skipped turn" and searches the resulting tree to prove the win, **Static Null Move Pruning (RFP)** takes a faster, purely mathematical shortcut. Instead of performing a search, it simply looks at the **Static Evaluation** of the current board. It assumes that if the current score is significantly higher than the Beta threshold—even after subtracting a conservative "safety margin" to account for the opponent's next move—then the branch is a guaranteed win and can be pruned immediately without any further analysis.
+While standard **Null Move Pruning (NMP)** actually executes this "skipped turn" and searches the resulting tree to prove the win, **Static Null Move Pruning (referred to as Reverse Futility Pruning, or RFP)** takes a faster, purely mathematical shortcut. Instead of performing a search, it simply looks at the **Static Evaluation** of the current board. It assumes that if the current score is significantly higher than the Beta threshold—even after subtracting a conservative "safety margin" to account for the opponent's next move—then the branch is a guaranteed win and can be pruned immediately without any further analysis.
 
 #### The Imperative Approach
 Before generating any legal moves, the engine takes a quick look at the static evaluation to see if it's overwhelmingly winning.
@@ -921,7 +1003,7 @@ DELETE FROM frontier_nodes WHERE ...
 ```
 </details>
 
-### Pruning: Forward Futility Pruning (FFP)
+### Heuristic: Forward Futility Pruning (FFP)
 
 While *Reverse* Futility Pruning works on the parent nodes *before* generating moves, *Forward* Futility Pruning aggressively culls the resulting *children* right *after* they are born. You might wonder: couldn't both checks just happen at the same level? No, because the distinction is about *timing*. RFP's entire value lies in skipping the expensive move generation step altogether — in SQL terms, avoiding the massive JOINs. FFP, on the other hand, handles a subtler case: the parent position isn't overwhelmingly winning (so RFP didn't fire), but specific quiet children are individually hopeless. You can only know *which* children are hopeless after generating them.
 
@@ -968,7 +1050,44 @@ AND NOT (
 ```
 </details>
 
-### Pruning: Late Move Reductions (LMR)
+### Heuristic: Late Move Pruning (LMP)
+
+Late Move Pruning is a simple but brutal heuristic: once we have searched a certain number of moves at a given depth and none have beaten our current Alpha, we assume that any *remaining* quiet moves in the sorted list are so unlikely to be good that we skip them entirely. This is different from the other pruning techniques because it doesn't look at the board state or the static evaluation—it relies entirely on the strength of our **Move Ordering**. If we trust that our move ordering correctly puts the best moves at the front, we can safely discard the moves at the absolute back.
+
+#### The Imperative Approach
+If the engine has already searched enough moves and none were "best," it simply stops searching the remaining moves.
+
+<details markdown="1">
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
+
+LMP is usually only applied to quiet moves (non-captures) and is more aggressive the further the engine is from the search root.
+
+```cpp
+// Late Move Pruning
+if (ply > 0 && !is_check && !is_capture && move_index > 8) {
+    continue; // Stop searching moves for this parent!
+}
+```
+</details>
+
+#### The Relational Approach
+In Quack-Mate, LMP is the "magic" that makes the batch-based search viable by limiting the size of our database tables.
+
+<details markdown="1">
+<summary class="tech-detail">🛠️ Click to expand technical details</summary>
+
+Because we've already assigned a `rank` to every move using our SQL Window Function (see Move Ordering), implementing LMP is a trivial `WHERE` clause. We simply tell the database: "Only generate children for moves ranked 1 through 8." 
+
+**LMP only applies to quiet moves.** We always search 100% of captures and checks to avoid tactical blindness. This ensures that while we limit the branching factor to prevent the database from choking on an exponential explosion of hopeless variations, we still maintain the volume of "tactical" moves necessary to fill DuckDB's vectorized query pipeline across the wider search frontier.
+
+```sql
+SELECT * FROM moves_with_rank
+WHERE (is_capture = 1 OR is_check = 1) -- Always search tactical moves
+OR rank <= 8; -- Only search the top 8 quiet moves (LMP)
+```
+</details>
+
+### Heuristic: Late Move Reductions (LMR)
 
 Forward Futility Pruning permanently discards moves based on their *static evaluation* — if the resulting position is hopelessly bad, throw it away. But what about quiet moves that survive all our pruning filters and don't *look* terrible, but simply ranked very low in the move ordering? They're probably useless, but we can't be sure enough to throw them away entirely. LMR takes a more cautious approach: instead of discarding these late-ranked moves, it gives them a *quick trial* by searching them at a reduced depth. If the shallow search confirms they're bad, we move on. If it surprisingly reveals the move is good, the engine re-searches it at full depth — no harm done.
 
@@ -1205,9 +1324,9 @@ First, observe the **Transposition Table (TT)** on the Start Position. Activatin
 Second, there is a glaring anomaly in the **MVV-LVA** data for Board 4 (Endgame): activating MVV-LVA increases the node count from 217,111 to 264,874. This isn't a bug; it is a textbook example of search instability. In a sparse endgame, captures are rare and often tactically irrelevant compared to critical positional moves (like moving the King to maintain opposition). By blindly forcing MVV-LVA to the top of our SQL ordering stack, we artificially inflate the value of a useless pawn capture. The engine wastes its initial full-window PVS batch evaluating that bad capture, fails to establish a strong Alpha threshold, and consequently fails to prune the subsequent batches of sibling moves. It proves that while MVV-LVA is mathematically essential for complex mid-games, it can actively fight against optimal move-ordering in quiet endgames.
 
 **The Dynamics of Pruning and Search Instability**
-Aggressive pruning techniques — RFP, FFP, and LMR — are structural requirements to prevent the analytical database from drowning in tree generation. However, they demonstrate highly position-dependent behaviour.
-
 In the Complex Mid-game (Board 2), static pruning (`RFP`) is phenomenally effective, slashing the node count from 907K down to just 68K and completing the search in 5.6 seconds. Yet, when forward pruning (`FFP` and `LMR`) are added on top, the node count unexpectedly spikes back up to 2.4M.
+
+Conversely, the highly tactical **KiwiPete (Board 3)** represents the "ideal" scenario for lossy pruning. It begins with a staggering **10.2M nodes** under basic BPVS, but the activation of RFP alone collapses this to just **493K** — a **20× reduction** that holds steady even as subsequent layers of pruning are added. This contrast is vital: Board 3 shows the massive reward of aggressive pruning when move ordering is accurate, while Board 2 illustrates the price of a single "ghost" refutation.
 
 This behaviour illustrates a concept known as "soft" search instability. Because the engine operates on a strict "Zero-Window" search (`[pvScore - 1, pvScore]`) during its batched evaluations, an aggressively reduced move that turns out to be tactically superior will **fail high** — essentially "breaking" the narrow Alpha-Beta window we set. 
 
@@ -1345,6 +1464,10 @@ This experiment confirmed that some classical chess techniques translate beautif
 
 Though admittedly much slower than established engines written in C++ or Rust, the combination of DuckDB and the BPVS strategies makes Quack-Mate genuinely playable up to a depth of 5. For an engine written essentially entirely in SQL, dragging an analytical database kicking and screaming into the world of adversarial game trees is a tremendous achievement.
 
-Essentially, this project confirmed the somewhat obvious conclusion: a relational database will never match the performance of a dedicated, imperative engine for a task it was never meant to perform. However, that was never the point. The value of Quack-Mate lies in the exploration itself—demonstrating that with enough creative orchestration, the boundaries of "what SQL can do" are far wider, more flexible, and more interesting than we often imagine.
+Essentially, this project confirmed the somewhat obvious conclusion: a relational database will never match the performance of a dedicated, imperative engine for a task it was never meant to perform. However, that was never the point. 
+
+> *"The value of Quack-Mate lies in the exploration itself—demonstrating that with enough creative orchestration, the boundaries of 'what SQL can do' are far wider, more flexible, and more interesting than we often imagine."*
+
+The exploration proves that even in the most "unsuitable" environments, the combination of elegant data structures like bitboards and the brute force of a modern analytical engine can produce something genuinely functional, slightly mad, and entirely unexpected.
 
 
