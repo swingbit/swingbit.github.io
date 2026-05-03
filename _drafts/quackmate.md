@@ -11,8 +11,7 @@ tags: chess duckdb sql
     <div style="text-align: right"><i><small>Image generated with Google Gemini</small></i></div>
 </div>
 
-Let's address the elephant in the room right away: SQL is absolutely not the most convenient or efficient paradigm for programming a chess engine, and I will not try to convince you otherwise.
-It is inherently designed for set-based data retrieval, not for the highly branching, depth-first search that characterises traditional chess engines. My intention with Quack-Mate was never to build a competitive engine to dethrone Stockfish. Rather, it was a passionate exploration of a single, slightly mad question: just how far can we push a modern analytical database engine to play chess?
+I know what you're thinking: SQL is a terrible language for a chess engine. And you're right. It is inherently designed for set-based data retrieval, not for the highly branching, depth-first search of traditional engines. My intention with Quack-Mate wasn't to dethrone Stockfish, but to explore a single, slightly mad question: just how far can we push a modern analytical database to play chess?
 
 > **TL;DR:** Is it possible to build a playable chess engine in pure SQL? Though it's not trivial, the answer is a definitive yes. **Quack-Mate** explores the inevitable collision between the set-based execution models of database engines and the sequential, depth-first reasoning required for efficient chess.
 <br>
@@ -72,7 +71,7 @@ Alternatively, you could reach for larger or non-standard SQL data types, but th
 
 This is precisely where DuckDB shines. I eventually focused on it because it hits the exact sweet spot: it provides native `UBIGINT` support to avoid 128-bit overhead, while its high-performance analytical engine allows us to process massive game trees entirely in-process. While a few other databases also support unsigned 64-bit integers (such as MySQL, MariaDB, and ClickHouse), DuckDB’s unique architecture provides the perfect environment for a SQL-based engine to prove its worth.
 
-By storing the entire game state as a single database row containing 12 `UBIGINT` columns, we can finally translate chess computations into pure, vectorised SQL operations. The profound elegance of bitboards is most striking when moving a piece down the search tree. Instead of looping over a traditional array to painstakingly clear "Square A1" and write to "Square A2", a move mathematically distills down to two simple square-presence flips. By applying two bitwise `XOR` operations against the original bitboard—one to toggle off the "from" square, and one to toggle on the "to" square—the piece instantly teleports to its new destination.
+By storing the entire game state as a single database row containing 12 `UBIGINT` columns, we can finally translate chess computations into pure, vectorised SQL operations. The mechanical efficiency of bitboards is most striking when moving a piece down the search tree. Instead of looping over a traditional array to painstakingly clear "Square A1" and write to "Square A2", a move mathematically distills down to two simple square-presence flips. By applying two bitwise `XOR` operations against the original bitboard—one to toggle off the "from" square, and one to toggle on the "to" square—the piece instantly teleports to its new destination.
 
 In short: `board ^= (square_from | square_to)`:
 
@@ -300,7 +299,10 @@ FROM search_tree
 WHERE depth = MAX_DEPTH
 ```
 
-*(Database Note: Referencing outer query columns like `wQ_bb` directly inside a `VALUES` table constructor is historically restricted in many SQL dialects unless explicitly wrapped in a `LATERAL` join. DuckDB's exceptionally smart parser natively supports this correlated variable injection, saving us from writing a much clunkier subquery).*
+**Database Notes**
+* Referencing outer query columns like `wQ_bb` directly inside a `VALUES` table constructor is historically restricted in many SQL dialects unless explicitly wrapped in a `LATERAL` join. DuckDB's parser natively supports this correlated variable injection, saving us from writing a much clunkier subquery.
+
+* While this is a beautiful example of purely relational set-math, executing it dynamically at every single leaf node is computationally heavy. Quack-Mate optimizes this by calculating the PST **incrementally**. As a piece moves down the search tree, we calculate the delta (subtracting the piece's value on the source square and adding its value on the destination square). The static evaluation at the leaf node simply reads this continuously updated, running total.
 </details>
 
 
@@ -691,6 +693,8 @@ If the engine hasn't found an alpha-beta cutoff by move 12, the move ordering ha
 In a PVS search, we assume all sibling moves in a batch are worse than our current best. To prove this quickly, we search them at a reduced depth with a "zero-window". If a move's score surprisingly exceeds our Alpha threshold, it has **"failed high"**—proving our assumption was wrong.
 
 When this happens, the Javascript orchestrator discards the shallow results and forces DuckDB to re-search that specific batch at full depth. With Progressive Batching, we evaluate the top moves in tiny batches (1, 3, 8) to get cheap cutoffs with a minimal re-search penalty if we fail high. If no cutoff is found after that, we know we probably have to search the rest anyway. Because an average chess position rarely exceeds 40-50 legal moves, a batch size of 64 guarantees that the database will evaluate 100% of the remaining "garbage" moves in one single, massive query, perfectly maxing out SQL's bulk processing efficiency.
+
+This batching introduces a strict "compute tax" native to SQL. In a standard imperative PVS, if a zero-window search fails high on the second move of a list, the engine instantly aborts the remaining siblings and re-searches that specific move with a full window. In Quack-Mate's SQL batches, if move #2 of an 8-move batch fails high, DuckDB is already executing the complex relational joins for moves #3 through #8 simultaneously. We fundamentally break the sequential logic of optimal PVS, trading algorithmic efficiency for vectorised throughput.
 
 This creates a hybrid search model: **Depth-First** in its **search strategy** (managed by the orchestrator to prioritize the PV), but **Breadth-First** in its **execution model** (managed by the database to process batches of moves as sets).
 
