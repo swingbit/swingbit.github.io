@@ -1166,6 +1166,8 @@ This gap is inherent to the batch-based search model. A recursive engine updates
 #### The "Search Instability" Outlier
 Position 2 (Complex Mid-game) provides a fascinating cautionary tale. While most optimizations shrink the tree, adding **Forward Futility Pruning (FFP)** in this specific position caused the node count to explode from **68K** (under the `+ RFP` config) to over **3.6M**. This is a classic case of **Search Instability**: by pruning a quiet move that was actually a critical refutation, the engine was forced to waste millions of nodes searching tactical "ghosts" that should have been pruned. 
 
+Interestingly, the JS reference engine—which uses the exact same FFP logic—does not suffer this explosion, completing the same search in just **6K nodes**. This confirms that the instability is primarily a product of the SQL engine’s **coarse pruning granularity**. While a sequential engine can "course-correct" the moment it finds a better move, the SQL engine is committed to its full batch. A single pruning mistake in a batch-based model can't be refuted until the entire batch is processed, allowing a minor heuristic error to snowball into an exponential workload explosion.
+
 Ironically, this is also why Position 2 benefits the most from multi-threading in our benchmarks (as we will see in the following section). It is the only case where the engine generates enough "garbage nodes" to finally saturate up to 8 CPU cores. It is a stark reminder that in chess, the most "efficient" engine is often the one that stays smart enough to stay single-threaded.
 
 ### Beyond Single-Threading: The Scaling Wall
