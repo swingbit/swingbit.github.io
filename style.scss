@@ -5,10 +5,8 @@
 // IMPORTS
 //
 
-@use "reset" as *;
-@use "variables" as *;
-@use "highlights" as *;
-@use "svg-icons" as *;
+@import "reset";
+@import "variables";
 // Syntax highlighting @import is at the bottom of this file
 
 /**************/
@@ -327,8 +325,10 @@ th {
   border-bottom: 2px solid $gray;
 }
 
-// Syntax highlighting and icons are now loaded at the top of the file via @use
-
+// Settled on moving the import of syntax highlighting to the bottom of the CSS
+// ... Otherwise it really bloats up the top of the CSS file and makes it difficult to find the start
+@import "highlights";
+@import "svg-icons";
 
 summary.tech-detail {
   margin-left: 30px;
