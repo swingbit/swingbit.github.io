@@ -962,21 +962,24 @@ The following techniques are **lossy pruning strategies**—they risk missing a 
 
 The concept of a "Null Move" is a cornerstone of chess engine optimisation. The intuition is simple: if you are so overwhelmingly winning that you could literally skip your turn (a "null move") and *still* be winning, you don't need to waste time searching that branch. 
 
-While standard **Null Move Pruning (NMP)** actually executes this "skipped turn" and searches the resulting tree to prove the win, **Static Null Move Pruning (referred to as Reverse Futility Pruning, or RFP)** takes a faster, purely mathematical shortcut. Instead of performing a search, it simply looks at the **Static Evaluation** of the current board. It assumes that if the current score is significantly higher than the Beta threshold—even after subtracting a conservative "safety margin" to account for the opponent's next move—then the branch is a guaranteed win and can be pruned immediately without any further analysis.
+While standard **Null Move Pruning (NMP)** actually executes this "skipped turn" and searches the resulting tree to prove the win, **Static Null Move Pruning (referred to as Reverse Futility Pruning, or RFP)** takes a faster, purely mathematical shortcut. Instead of performing a search, it simply looks at the **Static Evaluation** of the current board. It assumes that if the current score is significantly higher than the Beta threshold—even after subtracting a safety margin to account for the opponent's next move—then the branch is a guaranteed win and can be pruned immediately without any further analysis.
+
+To avoid overly aggressive pruning near the leaf nodes (where variations are shallow) while retaining high efficiency at deeper levels, we use a **dynamically scaling margin** based on the remaining depth to the horizon (`PRUNING_MARGIN * depth_to_horizon`). Additionally, RFP is **strictly bypassed if the parent was in check**.
 
 #### The Imperative Approach
-Before generating any legal moves, the engine takes a quick look at the static evaluation to see if it's overwhelmingly winning.
+Before generating any legal moves, the engine checks if it's overwhelmingly winning, using a scaled pruning margin based on the distance to the horizon.
 
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
-If the `static_eval` minus a massive safety margin is *still* higher than the Beta cutoff, the engine simply declares the position a win and prunes the entire branch immediately without generating a single child.
+If the `static_eval` minus the depth-scaled safety margin is *still* higher than the Beta cutoff, the engine simply declares the position a win and prunes the entire branch immediately without generating a single child.
 
 ```cpp
 // Static NMP (Reverse Futility Pruning)
-// Only safe if we aren't already at the very end of our search
+// Only safe if we aren't in check or already at the search horizon
 if (ply < limit && !is_check) {
-    int margin = 150;
+    int depth_to_horizon = limit - ply;
+    int margin = PRUNING_MARGIN * depth_to_horizon; // Dynamic scaled margin
     if (static_eval - margin >= beta) {
         return static_eval; // Prune!
     }
@@ -990,43 +993,43 @@ Quack-Mate executes this pruning natively across the entire `frontier_nodes` tab
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
-This happens before triggering the expensive Move Generation JOINs. This single `DELETE` operation effortlessly vaporises thousands of branches from the tree before DuckDB ever has to calculate their complex pseudo-legal attacks. 
+This happens before triggering the expensive Move Generation JOINs. This single `DELETE` operation effortlessly vaporises thousands of branches from the tree before DuckDB ever has to calculate their complex pseudo-legal attacks. The dynamic margin is pre-calculated by the orchestrator based on the current loop iteration depth.
 
 ```sql
 -- Instantly prune nodes that fail high statically
+-- Using a dynamically scaled margin based on remaining depth (targetD - d + 1)
 UPDATE search_tree 
 SET minimax_eval = static_eval 
 WHERE id IN (
     SELECT id FROM frontier_nodes
-    WHERE is_check = 0 
+    WHERE is_check = 0 -- Bypassed if parent was in check
     AND (
-        (active_turn = 1 AND static_eval - 150 >= loopBeta) OR
-        (active_turn = -1 AND static_eval + 150 <= loopAlpha)
+        (active_turn = 1 AND static_eval - :margin >= loopBeta) OR
+        (active_turn = -1 AND static_eval + :margin <= loopAlpha)
     )
 );
 
 -- Delete them from the frontier so they never generate children!
-DELETE FROM frontier_nodes WHERE ...
+DELETE FROM frontier_nodes WHERE is_check = 0 AND ...
 ```
 </details>
 
-### Heuristic: Forward Futility Pruning (FFP)
+While *Reverse* Futility Pruning works on the parent nodes *before* generating moves, *Forward* Futility Pruning aggressively culls the resulting *children* right *after* they are born. You might wonder: couldn't both checks just happen at the same level? No, because the distinction is about *timing*. RFP's entire value lies in skipping the expensive move generation step altogether — in SQL terms, avoiding the massive JOINs. FFP, on the other hand, culls quiet child moves whose evaluations are hopelessly far below our `alpha` threshold.
 
-While *Reverse* Futility Pruning works on the parent nodes *before* generating moves, *Forward* Futility Pruning aggressively culls the resulting *children* right *after* they are born. You might wonder: couldn't both checks just happen at the same level? No, because the distinction is about *timing*. RFP's entire value lies in skipping the expensive move generation step altogether — in SQL terms, avoiding the massive JOINs. FFP, on the other hand, handles a subtler case: the parent position isn't overwhelmingly winning (so RFP didn't fire), but specific quiet children are individually hopeless. You can only know *which* children are hopeless after generating them.
-
-If a newly generated quiet move (not a capture, check, or promotion) results in a static evaluation that is hopelessly far below our `alpha` threshold, we throw it away before ever pursuing it deeper.
+Crucially, FFP is strictly bypassed if either the parent node was in check, or the move itself gives check to the opponent's king. Without this safeguard, a checking move might be discarded simply because the immediate, static snapshot of the board looks weak—causing the engine to miss a winning sequence of forced opponent responses.
 
 #### The Imperative Approach
-Near the search horizon, the engine discards quiet moves that result in a hopelessly bad static evaluation.
+Near the search horizon, the engine discards quiet moves that result in a hopelessly bad static evaluation, unless those moves deliver check or respond to check.
 
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
-Inside the main search loop, the engine calculates the new static evaluation of the resulting board. If it's far below our alpha threshold, it `continue`s to the next move, saving a recursive call.
+Inside the main search loop, the engine calculates the new static evaluation of the resulting board. If it's far below our alpha threshold, and the move is not a tactical line (capture, promotion, or check), it is safely skipped.
 
 ```cpp
 // Forward Futility Pruning (Child Nodes, near the limit)
-if (ply + 2 >= limit && !is_capture && !is_check && !is_promo) {
+// Bypassed if parent is in check or the move itself gives check
+if (ply + 2 >= limit && !is_capture && !is_check && !gives_check && !is_promo) {
     int child_eval = evaluate(child_node);
     if (child_eval + PRUNING_MARGIN < alpha) {
         continue; // Hopelessly bad move. Skip it!
@@ -1041,18 +1044,23 @@ Quack-Mate applies FFP at *every* depth as a deliberate trade-off.
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
-We compute the new `static_eval` for millions of child nodes incrementally directly inside the `SELECT` clause, and then use a simple `WHERE` filter at the absolute bottom of the query to block hopeless nodes from ever entering the `search_tree` table.
+We compute the new `static_eval` for millions of child nodes incrementally directly inside the `SELECT` clause, and then use a simple `WHERE` filter at the absolute bottom of the query to block hopeless nodes from ever entering the `search_tree` table, explicitly bypassing the prune if the parent was in check or the move gives check.
 
 ```sql
 SELECT * FROM expanded_scored
 WHERE is_legal_check = 0
 -- White just moved. If the score is hopelessly below Alpha, prune it!
+-- Excludes checks and check-giving moves from being pruned
 AND NOT (
     active_turn_parent = 1 
+    AND is_check_parent = 0          -- Parent was NOT in check
+    AND gives_check = 0              -- Move DOES NOT give check
     AND static_eval < loopAlpha - 150
-    AND is_check = 0
     AND is_promo = 0
-    AND is_capture = 0
+    AND (
+        is_capture = 0
+        OR (static_eval + captured_piece_value + 50 < loopAlpha)
+    )
 )
 ```
 </details>
@@ -1145,34 +1153,44 @@ await db.query(sql);
     <div class="anchor-icon">🔍</div>
     <div class="anchor-content">
         <strong>Quiescence Search:</strong> 
-        <span>Extends the search along active capture lines to avoid the "horizon effect" and ensure tactical safety.</span>
+        <span>Extends the search along active capture/evasion lines to avoid the "horizon effect" and ensure tactical safety.</span>
     </div>
 </div>
 
 One of the biggest weaknesses of a fixed-depth chess search is the **Horizon Effect**. If our engine searches strictly to Depth 4, it might evaluate a position as highly favourable because it captures an opponent's piece on ply 4, completely blind to the fact that the opponent will recapture our piece on ply 5 (which lies just past the "horizon" of the search). This leads to catastrophic tactical blunders.
 
-Quiescence Search (QS) solves this by extending the search beyond the fixed depth limit. Once the main search reaches its depth horizon (`depth=maxDepth`), it enters a restricted QS phase. In this phase, we strictly evaluate **only "violent" moves** (captures and promotions) recursively until a "quiet" position is reached (where no more beneficial captures exist). This ensures that we only evaluate statically stable positions.
+Quiescence Search (QS) solves this by extending the search beyond the fixed depth limit. Once the main search reaches its depth horizon (`depth = maxDepth`), it enters a restricted QS phase. In this phase, we strictly evaluate **only captures and promotions** recursively until a "quiet" position is reached. 
 
-To prevent combinatorial explosion at the leaf nodes, we also implement **Delta Pruning**: if a capture cannot possibly improve our position enough to beat the Alpha threshold (even after adding a generous margin equal to the captured piece's value), we prune it immediately.
+However, if the king is currently **in check**, the engine cannot simply "stand pat" (accept static evaluation) because it is in an illegal, unresolved position. Moreover, we cannot restrict moves to captures alone—we must generate **all legal quiet evasions** as well as captures to try to escape the check, and we must bypass the stand-pat and delta pruning cutoffs entirely to resolve the check legally.
 
 #### The Imperative Approach
-The engine transitions from normal PVS/Alpha-Beta search to a specialised capture-only search at the leaf nodes.
+The engine transitions from normal PVS/Alpha-Beta search to a specialised search at the leaf nodes, expanding captures only unless in check, in which case it generates all legal escapes.
 
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
-Inside the leaf node evaluation, the engine establishes a "Stand Pat" score as a static baseline. If it's already higher than Beta, we cut off immediately. Otherwise, we recursively search capture moves, discarding any that fail delta pruning bounds.
+Inside the leaf node evaluation, the engine establishes a "Stand Pat" score if NOT in check. If in check, the baseline is set to negative infinity to force a search for a legal check-evading move.
 
 ```cpp
 int quiescence(Board state, int alpha, int beta) {
+    bool in_check = is_king_in_check(state);
+    
+    // Stand Pat baseline: only valid if we aren't in check!
     int stand_pat = evaluate(state);
-    if (stand_pat >= beta) return beta;
-    if (stand_pat > alpha) alpha = stand_pat;
+    if (!in_check) {
+        if (stand_pat >= beta) return beta;
+        if (stand_pat > alpha) alpha = stand_pat;
+    } else {
+        alpha = -INFINITY; // Force search to find a legal escape
+    }
 
-    for (Move m : generate_captures(state)) {
-        // Delta Pruning: Can this capture realistically beat alpha?
-        if (stand_pat + piece_value(captured(m)) + DELTA_MARGIN < alpha) {
-            continue; // Hopeless capture. Skip it!
+    // Generate quiet evasions + captures if in check; captures only if not
+    MoveList moves = in_check ? generate_all_legal_moves(state) : generate_captures(state);
+
+    for (Move m : moves) {
+        // Delta Pruning: only apply if NOT in check
+        if (!in_check && stand_pat + piece_value(captured(m)) + DELTA_MARGIN < alpha) {
+            continue; // Hopelessly capture. Skip it!
         }
         state.make_move(m);
         int score = -quiescence(state, -beta, -alpha);
@@ -1194,10 +1212,10 @@ In SQL, extending the tree dynamically at the leaves with recursive searches is 
 
 Quack-Mate resolves this by utilising a multi-phase SQL approach. When the orchestrator detects that the PVS search has reached its leaf depth, it maps the active leaf nodes into a temporary `qs_frontier` table. 
 
-It then executes a series of highly optimised **capture-only expansion joins**. We apply our exact SQL delta pruning filter — `victimVal >= Math.floor(attackerVal / 2)` — directly inside the join condition to strip out hopeless sacrifices before they are inserted. The minimax rollup is then executed as a separate post-processing rollup CTE.
+It then executes a series of highly optimised **expansion joins**. If the parent is in check, we generate **all legal moves** to resolve the check. We apply our exact SQL delta pruning filter — `victimVal >= Math.floor(attackerVal / 2)` — directly inside the join condition, but bypass it entirely when the parent is in check to ensure check evasions are never incorrectly pruned.
 
 ```sql
--- Generate capture-only extensions for active leaves
+-- Generate capture-only extensions (or all legal evasions if parent in check)
 INSERT INTO qs_search_tree (parent_id, from_sq, to_sq, piece, captured_piece, static_eval)
 SELECT 
     parent.id,
@@ -1205,16 +1223,18 @@ SELECT
     m.to_sq,
     m.piece,
     m.captured_piece,
-    -- Incrementally update evaluation based on the capture
     parent.static_eval + piece_val(m.captured_piece)
 FROM qs_frontier parent
 JOIN possible_moves m ON (m.board_hash = parent.board_hash)
-WHERE m.is_capture = 1
--- Delta Pruning Filter: Attacker piece value cannot be overwhelmingly larger than the victim
-AND piece_val(m.captured_piece) >= piece_val(m.piece) / 2;
+-- If parent is in check, we must generate all moves to resolve it!
+WHERE (parent.is_check = 1 OR m.is_capture = 1 OR m.is_promo = 1)
+-- Stand-pat & Delta Pruning are strictly bypassed when in check
+AND (
+    parent.is_check = 1 
+    OR piece_val(m.captured_piece) >= piece_val(m.piece) / 2
+);
 ```
 </details>
-
 
 ## The Granularity Paradox: Throughput vs. Pruning
 
