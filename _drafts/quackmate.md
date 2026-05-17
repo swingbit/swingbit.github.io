@@ -18,6 +18,9 @@ I know what you're thinking: SQL is a terrible language for a chess engine. And 
 <br>
 A playable compromise between these two opposing forces requires trading off both the algorithmic superiority of traditional engines and the raw data-crunching throughput of modern analytical databases. The result is a functional engine that proves an 'unsuitable' paradigm can be stretched to perform, even if the experiment ultimately illustrates why the divide between sets and trees remains so deep.
 
+Here is the Quack-Mate user interface in action. The application runs entirely in the browser using WebAssembly to run a local DuckDB instance. As the engine thinks, the interface exposes the exact SQL queries executing under the hood in real-time, alongside checkboxes to toggle specific move ordering or lossy pruning heuristics and a complete breakdown of detailed search statistics:
+
+<img src="/assets/images/quackmate_screenshot.png" alt="Quack-Mate User Interface in action" style="display: block; margin: 2rem auto; max-width: 100%; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"/>
 
 One of the reasons I embarked on this project was simply that it seemed nobody had done it before—at least, not like this. While there have been a few attempts to implement chess in databases, they typically rely heavily on procedural extensions like Oracle's PL/SQL or PostgreSQL's PL/pgSQL (with explicit loops and variables), or they are written as C extensions. Implementing a fully functioning chess engine purely through relational algebra and standard SQL queries on a modern analytical engine (like the brilliant DuckDB) felt like uncharted territory.
 
