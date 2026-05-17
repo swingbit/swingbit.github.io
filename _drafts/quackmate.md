@@ -1594,7 +1594,7 @@ This experiment confirmed that some classical chess techniques translate beautif
 
 ### Final Thoughts
 
-Though admittedly much slower than established engines written in C++ or Rust, the combination of DuckDB and the BPVS strategies makes Quack-Mate genuinely playable up to a depth of 5. For an engine written essentially entirely in SQL, dragging an analytical database kicking and screaming into the world of adversarial game trees is a tremendous achievement.
+Though admittedly much slower than established engines written in C++ or Rust, the combination of DuckDB and the BPVS strategies makes Quack-Mate genuinely playable up to a depth of 5 (or 4 + 1). For an engine written essentially entirely in SQL, dragging an analytical database kicking and screaming into the world of adversarial game trees is a tremendous achievement.
 
 Essentially, this project confirmed the somewhat obvious conclusion: a relational database will never match the performance of a dedicated, imperative engine for a task it was never meant to perform. However, that was never the point. 
 
