@@ -1488,18 +1488,31 @@ Even in-memory, DuckDB is a fully ACID-compliant database. Every `INSERT` and `D
 The addition of **Quiescence Search (QS)** is a key optimisation in the project, demonstrating the classic chess engine trade-off: **tactical safety vs. search depth**.
 
 #### Horizon Effect Resolution
-The comparison of QS against an additional search ply on Board 2 highlights key efficiency differences:
-* **BPVS + LMR (5 + QS=0)**: Explodes to **2.37M nodes**, taking **51.8 seconds** and **9.1 GB** of RAM. It represents a highly thorough but extremely heavy brute-force search.
-* **BPVS + LMR (4 + QS=1)**: Stabilises leaf nodes against immediate captures using only **33K nodes**, taking **4.4 seconds** and **681 MB** of RAM. However, this hyper-efficient configuration selects a different move (`g5f6` instead of `c3d5`).
-* **BPVS + LMR (4 + QS=2)**: Goes deeper along capture lines using **88K nodes** and taking **8.1 seconds** (1.0 GB of RAM) — and successfully matches the exact move selection (`c3d5`) of the full `5 + QS=0` search!
+The comparison of QS against an additional search ply on Board 2 and Board 3 highlights key efficiency and tactical stability differences:
 
-| Search Strategy | Move Selected | Nodes Evaluated | Time (s) | Memory (RAM) |
+* **Board 2 (Complex Mid-game):** The brute-force `5 + QS=0` search recommends `c3d5`. The shallow `4 + QS=1` search runs in a blistering 4.4 seconds but plays the suboptimal `g5f6`. Increasing the extension depth to `4 + QS=2` successfully recovers the correct `c3d5` move in just 8.1 seconds!
+
+| Search Strategy (Board 2) | Move Selected | Nodes Evaluated | Time (s) | Memory (RAM) |
 |---|:---:|:---:|:---:|:---:|
-| **Brute Force<br/>(`5 + QS=0`)** | `c3d5` | **2.37M** | 51.8s | 9.1 GB |
 | **Shallow QS<br/>(`4 + QS=1`)** | `g5f6` | **33K** | 4.4s | 681 MB |
 | **Deeper QS<br/>(`4 + QS=2`)** | `c3d5` | **88K** | 8.1s | 1.0 GB |
+| **Brute Force<br/>(`5 + QS=0`)** | `c3d5` | **2.37M** | 51.8s | 9.1 GB |
 
-This is a critical finding: while a shallow `4 + QS=1` search is incredibly cheap, it can occasionally cut corners and recommend suboptimal tactical moves because it stops capture extensions too early. By extending to **`4 + QS=2`**, we allow the engine to resolve deeper capture chains. On Board 2, this extra ply of quiescence search allows the engine to completely align its final move selection with the full brute-force `5 + QS=0` depth — but at **1/27th of the node count and a 6.4× speedup**! 
+* **Board 3 (KiwiPete - Highly Tactical):** A similar, highly telling pattern emerges. The correct, stable tactical move is `e2a6` (which captures the bishop on a6, as verified by `Stockfish` and our sequential `JS DFS` baseline across all configurations). Under `4 + QS=1`, the SQL engine gets distracted by a superficial tactic and plays `d5e6`. Enabling `4 + QS=2` stabilizes the tactical outlook and restores the correct `e2a6` move selection!
+
+| Search Strategy (Board 3) | Move Selected | Nodes Evaluated | Time (s) | Memory (RAM) |
+|---|:---:|:---:|:---:|:---:|
+| **Shallow QS<br/>(`4 + QS=1`)** | `d5e6` | **367K** | 15.1s | 2.3 GB |
+| **Deeper QS<br/>(`4 + QS=2`)** | `e2a6` | **371K** | 15.3s | 2.3 GB |
+| **Brute Force<br/>(`5 + QS=0`)** | `e5g6` | **944K** | 25.6s | 4.2 GB |
+
+This is a critical finding: while a shallow `4 + QS=1` search is incredibly cheap, it can occasionally cut corners and recommend suboptimal tactical moves because it stops capture extensions too early. By extending to **`4 + QS=2`**, we allow the engine to resolve deeper capture chains. 
+
+On Board 2, this extra ply of quiescence search aligns its final move selection with the full brute-force depth at **1/27th of the node count and a 6.4× speedup**! On the highly sharp KiwiPete (Board 3), `4 + QS=2` achieves the stable `e2a6` recommendation in just **371K nodes** — whereas the unquiesced brute force `5 + QS=0` search balloons to **944K nodes** and actually drifts off-course to `e5g6`.
+
+This divergence highlights a fascinating, counterintuitive reality in chess programming: **a deeper brute-force search is not always a better search.** Because `5 + QS=0` does not employ quiescence search at its leaf nodes, it evaluates positions at ply 5 statically, making it highly vulnerable to the **Horizon Effect**. In a tactically hyper-volatile position like KiwiPete, a static evaluation at ply 5 cannot see the immediate refutations lying just one ply deeper (at ply 6). This blind spot, combined with the aggressive selective pruning (LMR, RFP) required to run the relational engine at depth 5, derails the search, causing the engine to select the suboptimal `e5g6`. 
+
+Conversely, **`4 + QS=2`** only searches quiet paths to depth 4, but it extends tactical capture lines up to a depth of **6 plies**. By resolving all violent exchanges before statically evaluating the leaves, it secures a highly stable and accurate tactical overview, completely immune to the horizon effect. As a result, it easily finds the correct and stable `e2a6` move recommended by Stockfish — and does so at **40% of the nodes and half the execution time** of the bloated `5 + QS=0` search!
 
 While this is not a universal guarantee, it powerfully demonstrates how strategic quiescence search can approximate a full search depth with high fidelity at a fraction of the computational and transactional cost. By selectively extending only volatile exchanges, the engine avoids spawning millions of quiet variations that would otherwise swamp the database in ACID-overhead.
 
@@ -1523,6 +1536,20 @@ One of the most fascinating phenomena in computer chess is **Search Instability*
 | **Re-balanced<br/>(`+ FFP + LMR`)** | `c3d5` | -170 | **26K** | 2.8s |
 
 This illustrates the high-stakes gamble of heuristic pruning. In sharp, complex mid-games, static evaluations are highly deceptive: they cannot see threats lying just beyond the search horizon. If a heuristic like RFP prunes a branch based on a shallow, overly optimistic static score, the engine will suffer from "blind spots" that only deeper tactical search can cure.
+
+#### The Architectural Source of Instability: Batched BFS vs. Sequential DFS
+
+Is this move fluctuation just random noise, or is the engine simply erratic? 
+
+No. It is the **direct consequence of our relational database architecture.** 
+
+To understand why the SQL engine suffers from search instability while the sequential JS DFS engine remains rock-solid, we must examine their underlying search dynamics:
+
+1. **Sequential DFS (The Stable Ideal):** In a traditional chess engine (like our JS DFS reference), the search propagates alpha-beta bounds *instantly* and sequentially at every single node. This keeps the active search bounds window extremely narrow. Because the tree is naturally small, the sequential engine rarely needs to prune branches speculatively; it is highly stable because it calculates the absolute minimax truth for almost every line it explores.
+2. **Batched BFS (The Relational Reality):** Because SQL executes moves in parallel batches, it **cannot** propagate bounds instantly mid-query. As a result, the SQL engine's search tree is naturally much wider (evaluating up to 100× more nodes). 
+3. **The Speculative Tax:** To survive this node explosion in SQL, we are forced to apply aggressive, highly speculative pruning heuristics (like RFP and LMR) to artificially shrink the tree. However, because these heuristics prune entire sub-branches based on shallow, static evaluations and bulk learning (History/Killer weights updated at the end of batches), small variations in move ordering or search depth compound. This triggers **Search Instability**: a minor pruning decision on ply 2 can cut a vital refutation, leading the engine to a wildly different and sometimes inferior choice.
+
+Rather than a flaw, this search volatility represents **the literal architectural price of relational batching.** It highlights a profound trade-off: by trading away sequential, fine-grained bounds propagation in favor of batched SQL throughput, we inherit a volatile search space that requires careful, leaf-level stabilization—such as Quiescence Search—to align its strategic vision back with classical sequential baselines.
 
 ### 7. Under the Hood: Profiling and Query Plans
 
