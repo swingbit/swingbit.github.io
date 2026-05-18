@@ -1495,9 +1495,9 @@ The comparison of QS against an additional search ply on Board 2 highlights key 
 
 | Search Strategy | Move Selected | Nodes Evaluated | Time (s) | Memory (RAM) |
 |---|:---:|:---:|:---:|:---:|
-| **`5 + QS=0` (Brute Force)** | `c3d5` | **2.37M** | 51.8s | 9.1 GB |
-| **`4 + QS=1` (Shallow QS)** | `g5f6` | **33K** | 4.4s | 681 MB |
-| **`4 + QS=2` (Deep QS)** | `c3d5` | **88K** | 8.1s | 1.0 GB |
+| **Brute Force<br/>(`5 + QS=0`)** | `c3d5` | **2.37M** | 51.8s | 9.1 GB |
+| **Shallow QS<br/>(`4 + QS=1`)** | `g5f6` | **33K** | 4.4s | 681 MB |
+| **Deeper QS<br/>(`4 + QS=2`)** | `c3d5` | **88K** | 8.1s | 1.0 GB |
 
 This is a critical finding: while a shallow `4 + QS=1` search is incredibly cheap, it can occasionally cut corners and recommend suboptimal tactical moves because it stops capture extensions too early. By extending to **`4 + QS=2`**, we allow the engine to resolve deeper capture chains. On Board 2, this extra ply of quiescence search allows the engine to completely align its final move selection with the full brute-force `5 + QS=0` depth — but at **1/27th of the node count and a 6.4× speedup**! 
 
@@ -1518,9 +1518,9 @@ One of the most fascinating phenomena in computer chess is **Search Instability*
 
 | Heuristic Configuration | Move Selected | Evaluation Score | Nodes Evaluated | Time (s) |
 |---|:---:|:---:|:---:|:---:|
-| **Baseline (`+ History`)** | `c3d5` | -170 | **116K** | 4.2s |
-| **Aggressive Pruning (`+ RFP`)** | `g5f6` | +75 | **13K** | 2.3s |
-| **Re-balanced (`+ FFP` & `+ LMR`)** | `c3d5` | -170 | **26K** | 2.8s |
+| **Baseline<br/>(`+ History`)** | `c3d5` | -170 | **116K** | 4.2s |
+| **Aggressive Pruning<br/>(`+ RFP`)** | `g5f6` | +75 | **13K** | 2.3s |
+| **Re-balanced<br/>(`+ FFP + LMR`)** | `c3d5` | -170 | **26K** | 2.8s |
 
 This illustrates the high-stakes gamble of heuristic pruning. In sharp, complex mid-games, static evaluations are highly deceptive: they cannot see threats lying just beyond the search horizon. If a heuristic like RFP prunes a branch based on a shallow, overly optimistic static score, the engine will suffer from "blind spots" that only deeper tactical search can cure.
 
