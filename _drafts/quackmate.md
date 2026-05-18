@@ -1493,6 +1493,12 @@ The comparison of QS against an additional search ply on Board 2 highlights key 
 * **BPVS + LMR (4 + QS=1)**: Stabilises leaf nodes against immediate captures using only **33K nodes**, taking **4.4 seconds** and **681 MB** of RAM. However, this hyper-efficient configuration selects a different move (`g5f6` instead of `c3d5`).
 * **BPVS + LMR (4 + QS=2)**: Goes deeper along capture lines using **88K nodes** and taking **8.1 seconds** (1.0 GB of RAM) — and successfully matches the exact move selection (`c3d5`) of the full `5 + QS=0` search!
 
+| Search Strategy | Move Selected | Nodes Evaluated | Time (s) | Memory (RAM) |
+|---|:---:|:---:|:---:|:---:|
+| **`5 + QS=0` (Brute Force)** | `c3d5` | **2.37M** | 51.8s | 9.1 GB |
+| **`4 + QS=1` (Shallow QS)** | `g5f6` | **33K** | 4.4s | 681 MB |
+| **`4 + QS=2` (Deep QS)** | `c3d5` | **88K** | 8.1s | 1.0 GB |
+
 This is a critical finding: while a shallow `4 + QS=1` search is incredibly cheap, it can occasionally cut corners and recommend suboptimal tactical moves because it stops capture extensions too early. By extending to **`4 + QS=2`**, we allow the engine to resolve deeper capture chains. On Board 2, this extra ply of quiescence search allows the engine to completely align its final move selection with the full brute-force `5 + QS=0` depth — but at **1/27th of the node count and a 6.4× speedup**! 
 
 While this is not a universal guarantee, it powerfully demonstrates how strategic quiescence search can approximate a full search depth with high fidelity at a fraction of the computational and transactional cost. By selectively extending only volatile exchanges, the engine avoids spawning millions of quiet variations that would otherwise swamp the database in ACID-overhead.
@@ -1509,6 +1515,12 @@ One of the most fascinating phenomena in computer chess is **Search Instability*
 * **The Baseline (Correct minimax move):** Without selective pruning (configs up to `+ History`), the engine consistently selects `c3d5` with a score of `-170`. This is the strategically correct move that maintains the balance and safely handles opponent threats.
 * **Aggressive Pruning Instability (`+ RFP`):** When we enable **Reverse Futility Pruning (RFP)**, the search tree is aggressively trimmed—reducing evaluated nodes by over **90%** (from 116K down to 13K). However, the chosen move shifts to `g5f6` with a highly optimistic score of `75`! Statically, capturing the knight looks great, but deep down it is a tactical blunder that fails to address black's counterplay. RFP stands pat too early, pruning the very branches containing black's correct refutation.
 * **Correction via Combined Heuristics (`+ FFP` and `+ LMR`):** As soon as we combine RFP with **Forward Futility Pruning (FFP)** and **Late Move Reductions (LMR)**, the search is re-balanced, restoring the correct and stable `c3d5` move selection.
+
+| Heuristic Configuration | Move Selected | Evaluation Score | Nodes Evaluated | Time (s) |
+|---|:---:|:---:|:---:|:---:|
+| **Baseline (`+ History`)** | `c3d5` | -170 | **116K** | 4.2s |
+| **Aggressive Pruning (`+ RFP`)** | `g5f6` | +75 | **13K** | 2.3s |
+| **Re-balanced (`+ FFP` & `+ LMR`)** | `c3d5` | -170 | **26K** | 2.8s |
 
 This illustrates the high-stakes gamble of heuristic pruning. In sharp, complex mid-games, static evaluations are highly deceptive: they cannot see threats lying just beyond the search horizon. If a heuristic like RFP prunes a branch based on a shallow, overly optimistic static score, the engine will suffer from "blind spots" that only deeper tactical search can cure.
 
