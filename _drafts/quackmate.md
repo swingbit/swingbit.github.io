@@ -22,6 +22,17 @@ Here is the Quack-Mate user interface in action. The application runs entirely i
 
 <img src="/assets/images/quackmate_screenshot.png" alt="Quack-Mate User Interface in action" style="display: block; margin: 2rem auto; max-width: 100%; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"/>
 
+<div style="text-align: center; margin: -1rem 0 2rem 0; font-family: system-ui, -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; gap: 2rem;">
+    <a href="https://swingbit.github.io/quack-mate/" target="_blank" style="font-weight: 600; text-decoration: none; color: #2563eb; display: inline-flex; align-items: center; gap: 0.5rem;">
+        <img src="/assets/images/quackmate_logo_128.png" alt="Quack-Mate Logo" style="width: 60px; height: 60px; vertical-align: middle; margin: 0; border: none; box-shadow: none; border-radius: 0; display: inline;"/>
+        Play Quack-Mate Online
+    </a>
+    <a href="https://github.com/swingbit/quack-mate" target="_blank" style="font-weight: 600; text-decoration: none; color: #2563eb; display: inline-flex; align-items: center; gap: 0.5rem;">
+        <i class="svg-icon github" style="width: 45px; height: 45px; vertical-align: middle; margin: 0; display: inline-block; background-size: contain; background-repeat: no-repeat; background-position: center;"></i>
+        GitHub Repository
+    </a>
+</div>
+
 One of the reasons I embarked on this project was simply that it seemed nobody had done it before—at least, not like this. While there have been a few attempts to implement chess in databases, they typically rely heavily on procedural extensions like Oracle's PL/SQL or PostgreSQL's PL/pgSQL (with explicit loops and variables), or they are written as C extensions. Implementing a fully functioning chess engine purely through relational algebra and standard SQL queries on a modern analytical engine (like the brilliant DuckDB) felt like uncharted territory.
 
 Modern analytical engines like DuckDB are absolute beasts at crunching numbers in high volumes. Exploring the immense tree of chess possibilities immediately brings to mind joining a table of 'boards' with a table of 'all possible moves' to create a new generation of boards. If a pure SQL formulation is possible, you get the tremendous benefits of advanced database engines for free: brutal query optimisation and vectorised parallelisation over millions of rows.
