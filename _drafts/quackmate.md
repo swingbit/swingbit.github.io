@@ -18,7 +18,7 @@ I know what you're thinking: SQL is a terrible language for a chess engine. And 
 <br>
 A playable compromise between these two opposing forces requires trading off both the algorithmic superiority of traditional engines and the raw data-crunching throughput of modern analytical databases. The result is a functional engine that proves an 'unsuitable' paradigm can be stretched to perform, even if the experiment ultimately illustrates why the divide between sets and trees remains so deep.
 
-Here is the Quack-Mate user interface in action. The application runs entirely in the browser using WebAssembly to run a local DuckDB instance. As the engine thinks, the interface exposes the exact SQL queries executing under the hood in real-time, alongside checkboxes to toggle specific move ordering or lossy pruning heuristics and a complete breakdown of detailed search statistics:
+Here is the Quack-Mate user interface in action. You can [play the WebAssembly (WASM)](https://swingbit.github.io/quack-mate/) version online in your browser, or [run the interface locally](https://github.com/swingbit/quack-mate) using the native Node.js DuckDB driver for a significant performance boost. As the engine thinks, the interface exposes the exact SQL queries executing under the hood in real-time, alongside checkboxes to toggle specific move ordering or lossy pruning heuristics and a complete breakdown of detailed search statistics:
 
 <img src="/assets/images/quackmate_screenshot.png" alt="Quack-Mate User Interface in action" style="display: block; margin: 2rem auto; max-width: 100%; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"/>
 
@@ -33,7 +33,7 @@ Here is the Quack-Mate user interface in action. The application runs entirely i
     </a>
 </div>
 
-One of the reasons I embarked on this project was simply that it seemed nobody had done it before—at least, not like this. While there have been a few attempts to implement chess in databases, they typically rely heavily on procedural extensions like Oracle's PL/SQL or PostgreSQL's PL/pgSQL (with explicit loops and variables), or they are written as C extensions. Implementing a fully functioning chess engine purely through relational algebra and standard SQL queries on a modern analytical engine (like the brilliant DuckDB) felt like uncharted territory.
+If you have played a few games and explored the source code, you might wonder why anyone would choose to build a chess engine this way. For me, it began with a simple realisation: it seemed nobody had done it before—at least, not like this. While there have been a few attempts to implement chess in databases, they typically rely heavily on procedural extensions like Oracle's PL/SQL or PostgreSQL's PL/pgSQL (with explicit loops and variables), or they are written as C extensions. Implementing a fully functioning chess engine purely through relational algebra and standard SQL queries on a modern analytical engine (like the brilliant DuckDB) felt like uncharted territory.
 
 Modern analytical engines like DuckDB are absolute beasts at crunching numbers in high volumes. Exploring the immense tree of chess possibilities immediately brings to mind joining a table of 'boards' with a table of 'all possible moves' to create a new generation of boards. If a pure SQL formulation is possible, you get the tremendous benefits of advanced database engines for free: brutal query optimisation and vectorised parallelisation over millions of rows.
 
@@ -1465,9 +1465,9 @@ However, correctness comes at a price known as the **"Intelligence Tax."** Becau
 This brings us to the question of hardware: can we simply throw more CPU cores at this BFS overhead to narrow the gap?
 
 #### Beyond Single-Threading: The Scaling Wall
-To analyze parallel scalability, we test the multi-threaded execution profile specifically at **Depth 5** rather than shallower depths. At shallow depths, the search tree takes under 3 seconds to process, meaning micro-benchmark noise and OS scheduling jitter distort the results into a jagged curve.
+To analyse parallel scalability, we test the multi-threaded execution profile specifically at **Depth 5** rather than shallower depths. At shallow depths, the search tree takes under 3 seconds to process, meaning micro-benchmark noise and OS scheduling jitter distort the results into a jagged curve.
 
-Even under this denser workload, the database's parallel performance reveals the presence of a severe **Scaling Wall**. On dense, tactical positions where the branching factor is high, DuckDB finds a tiny bit of breathing room, delivering a microscopic **4-10% speedup** at the optimal 2 to 8 thread sweet spots (on the complex mid-game Board 2, execution time drops slightly from **10.3 seconds** on 1 thread to **9.9 seconds** on 8 threads, while the endgame Board 4 peaks at a **10% speedup** dropping from **3.9 seconds** to **3.5 seconds** at 2 threads). However, once we scale up to 16 threads, the database overhead of managing thread barriers and transaction synchronization under high concurrency rapidly cancels out these minor parallel gains, causing search times to actively degrade back to **10.8 seconds** (and **4.2 seconds** on the endgame). Because the search tree's logical traversal is deeply sequential under alpha-beta/PVS constraints, throwing more CPU cores at a problem that barely fills a fraction of a vector chunk only increases lock contention and coordination overhead, leaving threads queuing up at the database engine level.
+Even under this denser workload, the database's parallel performance reveals the presence of a severe **Scaling Wall**. On dense, tactical positions where the branching factor is high, DuckDB finds a tiny bit of breathing room, delivering a microscopic **4-10% speedup** at the optimal 2 to 8 thread sweet spots (on the complex mid-game Board 2, execution time drops slightly from **10.3 seconds** on 1 thread to **9.9 seconds** on 8 threads, while the endgame Board 4 peaks at a **10% speedup** dropping from **3.9 seconds** to **3.5 seconds** at 2 threads). However, once we scale up to 16 threads, the database overhead of managing thread barriers and transaction synchronisation under high concurrency rapidly cancels out these minor parallel gains, causing search times to actively degrade back to **10.8 seconds** (and **4.2 seconds** on the endgame). Because the search tree's logical traversal is deeply sequential under alpha-beta/PVS constraints, throwing more CPU cores at a problem that barely fills a fraction of a vector chunk only increases lock contention and coordination overhead, leaving threads queuing up at the database engine level.
 
 <img src="/assets/images/quackmate_threads.png" alt="Plot showing search time scaling by thread count across different board positions" width="700" style="display: block; margin: 2rem auto;"/>
 
@@ -1503,7 +1503,7 @@ The addition of **Quiescence Search (QS)** is a key optimisation in the project,
 #### Horizon Effect Resolution
 The comparison of QS against an additional search ply on Board 2 and Board 3 highlights key efficiency and tactical stability differences in the relational engine:
 
-* **Board 2 (Complex Mid-game):** The brute-force `5 + QS=0` search recommends `c3d5`. The shallow `4 + QS=1` search runs in a blistering 4.7 seconds but plays the suboptimal `g5f6`. While increasing the extension depth to `4 + QS=2` successfully recovers the correct `c3d5` move, it does so in 13.9 seconds—whereas a highly-optimized brute-force `5 + QS=0` search achieves the exact same correct move in just 10.2 seconds!
+* **Board 2 (Complex Mid-game):** The brute-force `5 + QS=0` search recommends `c3d5`. The shallow `4 + QS=1` search runs in a blistering 4.7 seconds but plays the suboptimal `g5f6`. While increasing the extension depth to `4 + QS=2` successfully recovers the correct `c3d5` move, it does so in 13.9 seconds—whereas a highly-optimised brute-force `5 + QS=0` search achieves the exact same correct move in just 10.2 seconds!
 
 | Search Strategy (Board 2) | Move Selected | Nodes Evaluated | Time (s) | Memory (RAM) |
 |---|:---:|:---:|:---:|:---:|
@@ -1511,7 +1511,7 @@ The comparison of QS against an additional search ply on Board 2 and Board 3 hig
 | **Deeper QS<br/>(`4 + QS=2`)** | `c3d5` | **315K** | 13.9s | 2.6 GB |
 | **Brute Force<br/>(`5 + QS=0`)** | `c3d5` | **276K** | 10.2s | 1.8 GB |
 
-* **Board 3 (KiwiPete - Highly Tactical):** A similar, highly telling pattern emerges. The correct, stable tactical move is `e2a6` (which captures the bishop on a6, as verified by `Stockfish` and our sequential `JS DFS` baseline across all configurations). Under `4 + QS=1`, the SQL engine successfully finds the correct `e2a6` move in a blistering 4.5 seconds and only 40K nodes. However, when we enable `4 + QS=2`, the search balloons to 414K nodes and 15.9 seconds. Crucially, the optimized brute-force `5 + QS=0` search delivers the correct `e2a6` move in just 5.1 seconds and 67K nodes—performing 6× fewer evaluations than the quiescence-extended search!
+* **Board 3 (KiwiPete - Highly Tactical):** A similar, highly telling pattern emerges. The correct, stable tactical move is `e2a6` (which captures the bishop on a6, as verified by `Stockfish` and our sequential `JS DFS` baseline across all configurations). Under `4 + QS=1`, the SQL engine successfully finds the correct `e2a6` move in a blistering 4.5 seconds and only 40K nodes. However, when we enable `4 + QS=2`, the search balloons to 414K nodes and 15.9 seconds. Crucially, the optimised brute-force `5 + QS=0` search delivers the correct `e2a6` move in just 5.1 seconds and 67K nodes—performing 6× fewer evaluations than the quiescence-extended search!
 
 | Search Strategy (Board 3) | Move Selected | Nodes Evaluated | Time (s) | Memory (RAM) |
 |---|:---:|:---:|:---:|:---:|
@@ -1528,9 +1528,9 @@ With robust Iterative Deepening PV search and Transposition Table integration, t
 #### The Transactional and Join-Based Overhead of Quiescence Search
 In a relational SQL chess engine, every ply of search carries a transactional and join-based overhead. When we enable **Quiescence Search (`QS=2`)**, we extend *all* active capture lines at the leaf nodes (ply 4) by up to 2 plies. In complex mid-games (Board 2) and highly tactical positions (KiwiPete), captures are incredibly abundant. Extending all these capture lines forces the database to generate and evaluate a massive selective "tail" of capture variations.
 
-Conversely, because a clean brute-force `5 + QS=0` search uses optimized move-ordering and a fully working Transposition Table, the alpha-beta algorithm achieves near-perfect cutoffs, brutally pruning entire sub-branches before they are even expanded. 
+Conversely, because a clean brute-force `5 + QS=0` search uses optimised move-ordering and a fully working Transposition Table, the alpha-beta algorithm achieves near-perfect cutoffs, brutally pruning entire sub-branches before they are even expanded. 
 
-This leads to a fascinating relational paradox: **selectively extending capture lines via QS can sometimes be more expensive than searching a full extra brute-force ply!** While Quiescence Search remains highly valuable at shallow depths to resolve tactical instability, once the engine's core search and pruning heuristics are fully optimized and functioning correctly, a deeper brute-force search (`5 + QS=0`) leverages the full power of sequential pruning and transactional efficiency far better than a selectively bloated quiescence tree.
+This leads to a fascinating relational paradox: **selectively extending capture lines via QS can sometimes be more expensive than searching a full extra brute-force ply!** While Quiescence Search remains highly valuable at shallow depths to resolve tactical instability, once the engine's core search and pruning heuristics are fully optimised and functioning correctly, a deeper brute-force search (`5 + QS=0`) leverages the full power of sequential pruning and transactional efficiency far better than a selectively bloated quiescence tree.
 
 #### The Disappointment of Relational QS: A Paradigm Shift
 This revelation represents a significant paradigm shift from classical, low-level chess engine design. In a traditional imperative engine, Quiescence Search is a lightweight, absolute cornerstone of tactical safety. Evaluating a leaf-node capture in a sequential pointer-based tree carries almost zero overhead, meaning a deep, selective capture search is incredibly cheap. 
@@ -1552,7 +1552,7 @@ One of the most fascinating phenomena in computer chess is **Search Instability*
 
 In a relational SQL environment, maintaining strategic consistency across different heuristic configurations is a major challenge. Because a database-driven search tree is naturally wide, we rely heavily on pruning heuristics to restrict the evaluated node counts. If these heuristics prune branches too aggressively based on shallow static evaluations, they can introduce critical blind spots. 
 
-However, with robust **Iterative Deepening PV tracking** and **Transposition Table (TT) integration**, our engine achieves near-perfect strategic stability and convergence. We can see this in how Board 2's evaluation stabilizes beautifully across different heuristic configurations:
+However, with robust **Iterative Deepening PV tracking** and **Transposition Table (TT) integration**, our engine achieves near-perfect strategic stability and convergence. We can see this in how Board 2's evaluation stabilises beautifully across different heuristic configurations:
 
 * **Strategic Consistency:** The engine consistently identifies the strategically sound minimax move `c3d5` across all configurations, demonstrating that selective pruning does not compromise tactical correctness.
 * **Proportional Node Reductions:** Under **Reverse Futility Pruning (RFP)**, the evaluated node count drops by over **60%** (from 27K down to 9.6K) while maintaining the correct minimax line, though with a slightly optimistic score (`-60`) due to the shallower evaluation of pruned lines. 
@@ -1565,7 +1565,7 @@ However, with robust **Iterative Deepening PV tracking** and **Transposition Tab
 | **Re-balanced<br/>(`+ FFP + LMR`)** | `c3d5` | -170 | **26K** | 2.9s |
 
 #### The Architectural Trade-Off: Sequential DFS vs. Batched BFS
-The highly optimized heuristics of our engine allow us to clearly isolate the true architectural cost of relational execution:
+The highly optimised heuristics of our engine allow us to clearly isolate the true architectural cost of relational execution:
 
 1. **Sequential DFS (The Sequential Ideal):** In a traditional chess engine (like our JS DFS reference), alpha-beta bounds propagate sequentially and instantly at every single node, maintaining an extremely narrow search window. This sequential feedback loop is highly efficient, allowing the JS engine to navigate the board in just 1.5K nodes.
 2. **Batched BFS (The Relational Reality):** Because the SQL engine executes moves in parallel batches, it cannot update or propagate pruning thresholds instantly mid-query. As a result, the database must evaluate sibling moves in the same batch without the benefit of cutoffs triggered by their predecessors. This is the **"Intelligence Tax"**—an unavoidable consequence of trading sequential feedback for batch-based relational throughput.
