@@ -146,6 +146,8 @@ Generating next moves isn't done piece-by-piece; it's a massive, concurrent `JOI
 
 We pre-compute these masks for every piece on every square and store them as two static lookup tables: `mobility_precomputed` (showing where a piece can legally move) and `attacks_precomputed` (a separate table necessary specifically for Pawns, which move forward but capture diagonally). We explode the current game state out into all its pieces and join them with the pre-computed mobility tables to instantly spawn rows for every possible pseudo-legal continuation for *all* pieces simultaneously.
 
+The `JOIN LATERAL` pattern allows an inner subquery to reference columns from the current outer row — here, it checks each bitboard column to identify which piece type occupies a given square. `ON true` simply means the join always applies; there is no key to match on. It is the SQL equivalent of a multi-branch `if/else` that emits a row only for the piece type that matches.
+
 ```sql
 SELECT 
     s.id AS parent_id, m.from_sq, m.target_sq AS to_sq, pt.piece
@@ -541,7 +543,7 @@ Instead of telling DuckDB to search directly to Depth N, the Javascript orchestr
 
 But why restart from Depth 0, duplicating the work of previous iterations, instead of saving the Depth 2 tree and simply expanding its leaves? 
 
-Doing so destroys Alpha-Beta pruning! To get a strong pruning threshold (Alpha) early, the engine must trace the single most promising path (the Principal Variation) down to the target depth, evaluate it, and bubble that score back up. Only armed with this updated global bound can the engine safely prune terrible branches at shallow levels. Because the chess tree grows exponentially, the cost of regenerating shallow nodes is mathematically negligible (typically under 3% of the total search time) compared to the staggering savings of pruning with a highly accurate transposition table built during the previous iteration.
+Doing so destroys Alpha-Beta pruning! To get a strong pruning threshold (Alpha) early, the engine must trace the single most promising path (the Principal Variation) down to the target depth, evaluate it, and bubble that score back up. Only armed with this updated global bound can the engine safely prune terrible branches at shallow levels. Because the chess tree grows exponentially, the cost of regenerating shallow nodes is mathematically negligible (typically under 3% of the total search time) compared to the staggering savings from entering each new iteration already knowing which moves proved strongest in the previous one.
 
 ### The Pruning Prerequisite: Move Ordering
 
@@ -774,16 +776,13 @@ In chess, many different sequences of moves can lead to the exact same board pos
 
 To identify these repeating positions, Quack-Mate (like most modern engines) utilises a **Zobrist Hash**, a brilliant application of bitwise math. A random, static 64-bit number is pre-generated for every possible piece type appearing on every possible square (yielding an array of 12 piece types × 64 squares = 768 random numbers, plus a handful of extras to track castling rights and turn order). To calculate the hash for any board state, the engine simply takes the random numbers corresponding to the pieces currently on the board, the turn order, and the castling rights, and XORs (`^`) them all together. Because `A ^ A = 0`, engines can update this hash incredibly fast incrementally: if a Knight moves from g1 to f3, the engine just takes the old board hash, XORs it by `random_White_Knight_g1` to remove the piece, and then XORs by `random_White_Knight_f3` to place it.
 
-**The Currency of the Cache: Remaining Depth**
-Before discussing how engines store these hashes, it is critical to understand *what* they are actually storing. A Transposition Table does not care how many moves it took to *reach* a board position; it only cares about the quality of the evaluation, which is dictated by how many moves *ahead* the engine looked. 
 
-This is tracked as `remaining_depth`. If an engine is running a depth 5 search (`MAX_DEPTH = 5`), and it evaluates a board position that is 2 moves down the tree (`ply = 2`), it calculated that score by looking 3 moves into the future. It stores `3` in the TT as the depth. The golden rule of Transposition Tables is that an engine will *never* let a shallow, low-quality evaluation overwrite a deep, high-quality evaluation in the cache.
-
-With these evaluations securely cached, classical engines read from the TT to perform two distinct roles:
+What gets stored alongside the hash is not just the score, but a measure of how *deeply* it was computed: the number of plies remaining when the position was evaluated (`remaining_depth = MAX_DEPTH - current_depth`). A score computed with 3 plies of look-ahead is more reliable than one computed with only 1, so the golden rule of Transposition Tables is: **never let a shallower evaluation overwrite a deeper one**. With these evaluations securely cached, classical engines read from the TT to perform two distinct roles:
 1. **Total Branch Pruning**: If a cached evaluation is found with sufficient depth, the engine instantly returns the score (requiring strict tracking of Alpha/Beta bound types—Exact, Upper, or Lower).
 2. **Move Ordering**: If the cached depth is insufficient, the engine extracts the previously saved `best_move` and searches it first, massively increasing the chance of an early Alpha-Beta cutoff.
 
 Where engines diverge is how they *store* and enforce this rule.
+
 
 #### The Imperative Approach
 Engines use a blazing-fast 64-bit Zobrist Hash as the primary key in a massive, painstakingly pre-allocated memory map.
@@ -791,7 +790,7 @@ Engines use a blazing-fast 64-bit Zobrist Hash as the primary key in a massive, 
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
-This memory map (Transposition Table) lives in raw RAM and must be carefully protected by complex read/write locks during multi-threaded searches. The golden rule is that an engine will *never* let a shallow, low-quality evaluation overwrite a deep, high-quality evaluation in the cache.
+This memory map (Transposition Table) lives in raw RAM and must be carefully protected by complex read/write locks during multi-threaded searches.
 
 ```cpp
 // How many moves ahead do we still need to look?
