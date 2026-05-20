@@ -1043,28 +1043,26 @@ if (ply + 2 >= limit && !is_capture && !is_check && !gives_check && !is_promo) {
 </details>
 
 #### The Relational Approach
-Quack-Mate applies FFP at *every* depth as a deliberate trade-off. 
+Quack-Mate mirrors the imperative approach, applying the FFP filter only when we are within two plies of the search horizon (`MAX_DEPTH - depth <= 2`). 
 
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
-We compute the new `static_eval` for millions of child nodes incrementally directly inside the `SELECT` clause, and then use a simple `WHERE` filter at the absolute bottom of the query to block hopeless nodes from ever entering the `search_tree` table, explicitly bypassing the prune if the parent was in check or the move gives check.
+We compute the new `static_eval` for child nodes incrementally, and then use a dynamic `WHERE` filter at the absolute bottom of our query to block hopeless nodes from entering the `search_tree` table. The orchestrator only appends this condition when expanding nodes near the search horizon:
 
 ```sql
 SELECT * FROM expanded_scored
 WHERE is_legal_check = 0
+-- Only applied near the search horizon (remaining depth <= 2)
+AND (target_depth - depth <= 2)
 -- White just moved. If the score is hopelessly below Alpha, prune it!
--- Excludes checks and check-giving moves from being pruned
 AND NOT (
     active_turn_parent = 1 
     AND is_check_parent = 0          -- Parent was NOT in check
     AND gives_check = 0              -- Move DOES NOT give check
     AND static_eval < loopAlpha - 150
     AND is_promo = 0
-    AND (
-        is_capture = 0
-        OR (static_eval + captured_piece_value + 50 < loopAlpha)
-    )
+    AND is_capture = 0
 )
 ```
 </details>
