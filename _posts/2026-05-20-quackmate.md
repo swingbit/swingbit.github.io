@@ -1550,7 +1550,7 @@ If you've spent any time tuning analytical databases, the final question is: whe
 #### Profiling: Where Does the Time Actually Go?
 An `EXPLAIN ANALYZE` on our expansion queries reveals that we are overwhelmingly **Join-bound**. 
 
-Here is a summarised, time-annotated snippet from DuckDB's native `query_tree` profiler showing the execution hierarchy of a pseudo-legal move generation query:
+In each BPVS iteration, the orchestrator fires several SQL queries: move generation (expansion), legality validation, evaluation, and minimax bubble-up. Of these, **move expansion is by far the most expensive**, typically accounting for the dominant share of per-iteration wall-clock time. Here is a summarised, time-annotated snippet from DuckDB's native `query_tree` profiler showing the internal execution hierarchy of that move-expansion query:
 
 ```text
 ┌────────────────────────────────────────────────┐
