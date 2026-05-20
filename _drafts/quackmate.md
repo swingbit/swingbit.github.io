@@ -51,7 +51,7 @@ Before we talk about moving pieces, we have to talk about how the board is store
 
 Modern chess engines use **Bitboards**: 64-bit integers where each bit represents a square on the board (1 if occupied, 0 if empty). Instead of keeping one big array that says "Square E4 houses a White Pawn", engines maintain separate bitboards for each piece type. You need 12 in total: White Pawns, White Knights, Black Pawns... all the way to Black Kings.
 
-Using Bitboards means answering chess questions becomes lighting-fast bitwise math. 
+Using Bitboards means answering chess questions becomes highly efficient bitwise math. 
 
 All the White Pawns are identified by a specific bitboard:
 ```
@@ -79,9 +79,9 @@ To replicate this state-of-the-art representation in a database, we hit an immed
 
 Alternatively, you could reach for larger or non-standard SQL data types, but this solution isn't optimal either:
 - **ClickHouse**: The leader in this space, offering native 128-bit (`UInt128`) and even 256-bit unsigned integers.
-- **MonetDB**: Offers a native 128-bit `HUGEINT` type. An early prototype of Quack-Mate actually supported both DuckDB and MonetDB (using the `HUGEINT` type), as they both are incredibly fast analytical engines.
+- **MonetDB**: Offers a native 128-bit `HUGEINT` type. An early prototype of Quack-Mate actually supported both DuckDB and MonetDB (using the `HUGEINT` type), as they both are high-performance analytical engines.
 - **Snowflake**: Its primary numeric type is `NUMBER`, but its internal engine and bitwise functions (like `BITAND`, `BITSHIFTLEFT`) actually operate on and return signed 128-bit integers.
-- **PostgreSQL (via Extension)**: While lacking native support in core, the popular `pg-uint128` extension adds unsigned 128-bit integers (which suffers from the severe query overhead of executing over a non-native data type).
+- **PostgreSQL (via Extension)**: While lacking native support in core, the specialised `pg-uint128` extension adds unsigned 128-bit integers (which can introduce query execution overhead when processing operations over non-native extension types).
 
 This is precisely where DuckDB shines. I eventually focused on it because it hits the exact sweet spot: it provides native `UBIGINT` support to avoid 128-bit overhead, while its high-performance analytical engine allows us to process massive game trees entirely in-process. While a few other databases also support unsigned 64-bit integers (such as MySQL, MariaDB, and ClickHouse), DuckDB’s unique architecture provides the perfect environment for a SQL-based engine to prove its worth.
 
@@ -91,7 +91,7 @@ In short: `board ^= (square_from | square_to)`:
 
 <img src="/assets/images/quackmate_bitboard_move.png" alt="Diagram showing bitwise XOR flipping for chess movement" width="450" style="display: block; margin: 0 auto;"/>
 
-Because DuckDB supports these bitwise operators natively on unsigned integers, the analytical engine can execute these elegant binary flips across millions of rows simultaneously at staggering speeds:
+Because DuckDB supports these bitwise operators natively on unsigned integers, the analytical engine can execute these binary flips across millions of rows simultaneously:
 
 ```sql
 -- Applying a move to the white pawns bitboard
@@ -139,7 +139,7 @@ while (knights) {
 
 
 #### The Relational Approach
-Generating next moves isn't done piece-by-piece; it's a massive, concurrent `JOIN` operation. Quack-Mate supports all standard legal chess moves—including castling and pawn promotions—with the sole exception of the en-passant rule. While essential for full chess compliance, implementing the dynamic, history-dependent state tracking for en-passant in pure SQL adds significant query complexity for an edge case that is extremely rare in casual play. By omitting it, the database schema and move generation joins remain clean and highly streamlined. 
+Generating next moves isn't done piece-by-piece; it's a massive, concurrent `JOIN` operation. Quack-Mate supports all standard legal chess moves—including castling and pawn promotions—with the sole exception of the en-passant rule. While essential for full FIDE compliance, tracking the transient history-dependent state required for en-passant in pure SQL adds substantial query and schema complexity to the move generator. To keep the relational joins and database schema as clean and streamlined as possible, en-passant is currently omitted from the move generator.
 
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to expand technical details</summary>
@@ -328,11 +328,9 @@ WHERE depth = MAX_DEPTH
     </div>
 </div>
 
-The engine has now generated the tree of legal moves and statically evaluated the final resulting board states (the leaf nodes). To actually make a decision, these scores need to bubble back up to the root node so the engine can choose the most promising move right now, assuming best play from both sides.
+The engine has now generated the tree of legal moves and statically evaluated the final resulting board states (the leaf nodes). To make a decision, these scores must bubble back up to the root node so the engine can select the optimal move, assuming best play from both sides.
 
-> In an imperative language, a minimax function calls itself recursively. In SQL, we use a `WITH RECURSIVE` Common Table Expression (CTE) to transform the entire cycle of generation, evaluation, and score propagation into one single query.
-
-The most elegant part of this pure SQL experiment is the "Recursive Strategy". It tackles this entire generation, evaluation, and score propagation cycle in **one single, glorious query** using a `WITH RECURSIVE` Common Table Expression (CTE). The structural translation is beautiful, mapping perfectly from an imperative Minimax algorithm into the language of relational sets.
+In an imperative language, a minimax function recursively calls itself. In SQL, we can express this entire cycle of generation, evaluation, and score propagation within a single query using a `WITH RECURSIVE` Common Table Expression (CTE).
 
 #### The Imperative Approach
 In an imperative language, a minimax function calls itself recursively to explore the game tree. 
@@ -373,12 +371,12 @@ int minimax(Board node, int depth, bool is_white_turn) {
 
 
 #### The Relational Approach
-This approach maps almost directly to a `WITH RECURSIVE` CTE, where the recursion is handled by the database engine.
+This approach maps the game tree directly to a relational structure where both search expansion and bottom-up minimax aggregation are handled within a single SQL transaction.
 
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
-The structural translation is beautiful, mapping perfectly from an imperative Minimax algorithm into the language of relational sets. By using a `GROUP BY parent_id` combined with an aggregate `MAX()` or `MIN()`, SQL effortlessly handles the bubbling up of minimax scores across millions of branches simultaneously.
+By joining the expanding nodes top-down, and then joining the minimax evaluations bottom-up using `GROUP BY parent_id` with side-specific `MIN`/`MAX` aggregates, SQL handles the entire minimax traversal natively.
 
 ```sql
 WITH RECURSIVE
@@ -418,9 +416,7 @@ SELECT score FROM minimax WHERE depth = 0;
 
 
 
-It highlights the underlying structure of a minimax algorithm perfectly, purely through sets joining sets.
-
-By using a `GROUP BY parent_id` combined with an aggregate `MAX()` or `MIN()`, SQL effortlessly handles the bubbling up of minimax scores across millions of branches simultaneously.
+This maps the sequential, recursive tree traversal of minimax into a highly structured set of relational operations.
 
 ## The Hard Limits of Elegance
 
@@ -507,15 +503,15 @@ Pruned Sub-tree"):::prunedNode
 
 To understand this more intuitively, imagine you are shopping for a new house with a very picky partner:
 
-*   **Alpha (Your "Floor"):** You’ve already found a nice house, House A, for €200,000. This is your "best found so far." You will never accept anything worse than this.
-*   **Beta (The Opponent's "Ceiling"):** Your partner has set a hard limit: "I will not live in a house that costs more than €250,000." This is the maximum they will ever allow you to achieve.
+*   **Alpha (Your "Floor"):** You’ve already found a nice house, House A, with a value score of €200,000. This is your "best found so far" that you are guaranteed to accept. You will never accept anything worse than this.
+*   **Beta (Your Partner's "Ceiling"):** Your partner (acting as the minimising opponent) wants to limit spending and has set a strict cap: "I will never agree to a house that costs or is valued over €250,000." This is the ceiling they will allow you to reach.
 
-Now you visit House B. As soon as the real estate agent tells you the price is €260,000, you walk out. You don't need to check the kitchen or the backyard—you already know your partner will never agree to it. This is an **Alpha-Beta Cutoff**.
+Now you visit House B. As soon as you see it's a massive estate valued at €300,000, you walk out. You don't need to check the kitchen or the backyard—you already know your partner will veto it to stay under their €250,000 ceiling. This is an **Alpha-Beta Cutoff**.
 
 In the engine's search tree, we classify these moments as:
 
-*   **Fail-Low (score ≤ Alpha):** You found a house for €150,000, but it’s a total wreck. It's worse than your €200,000 floor. You ignore it and keep looking.
-*   **Fail-High (score ≥ Beta):** You found a mansion for €300,000. It's "too good"—meaning it exceeds the limit your partner set. Since they will never let the game reach this state, you stop searching this branch immediately.
+*   **Fail-Low (score ≤ Alpha):** You find a house valued at €150,000 that is a total wreck. It's below your €200,000 floor. You ignore it and keep looking.
+*   **Fail-High (score ≥ Beta):** You find a luxurious mansion valued at €300,000. It's "too good" (exceeds your partner's €250,000 ceiling). Since your partner will never allow the transaction to reach this state, you stop searching this branch immediately.
 
 </details>
 
@@ -702,7 +698,7 @@ If the engine hasn't found an alpha-beta cutoff by move 12, the move ordering ha
 
 In a PVS search, we assume all sibling moves in a batch are worse than our current best. To prove this quickly, we search them at a reduced depth with a "zero-window". If a move's score surprisingly exceeds our Alpha threshold, it has **"failed high"**—proving our assumption was wrong.
 
-When this happens, the Javascript orchestrator discards the shallow results and forces DuckDB to re-search that specific batch at full depth. With Progressive Batching, we evaluate the top moves in tiny batches (1, 3, 8) to get cheap cutoffs with a minimal re-search penalty if we fail high. If no cutoff is found after that, we know we probably have to search the rest anyway. Because an average chess position rarely exceeds 40-50 legal moves, a batch size of 64 guarantees that the database will evaluate 100% of the remaining "garbage" moves in one single, massive query, perfectly maxing out SQL's bulk processing efficiency.
+When this happens, the Javascript orchestrator discards the shallow results and forces DuckDB to re-search that specific batch at full depth. With Progressive Batching, we evaluate the top moves in tiny batches (1, 3, 8) to get cheap cutoffs with a minimal re-search penalty if we fail high. If no cutoff is found after that, we know we probably have to search the rest anyway. Since an average chess position rarely exceeds 40-50 legal moves, a trailing batch size of 64 guarantees that the database will evaluate 100% of the residual moves in one single, massive query. This perfectly maxes out SQL's bulk processing efficiency without requiring manual tuning of the batch size option.
 
 This batching introduces a strict "compute overhead" native to SQL. In a standard imperative PVS, if a zero-window search fails high on the second move of a list, the engine instantly aborts the remaining siblings and re-searches that specific move with a full window. In Quack-Mate's SQL batches, if move #2 of an 8-move batch fails high, DuckDB is already executing the complex relational joins for moves #3 through #8 simultaneously. We fundamentally break the sequential logic of optimal PVS, trading algorithmic efficiency for vectorised throughput.
 
@@ -764,7 +760,7 @@ ORDER BY (
 ```
 </details>
 
-### (Move Ordering:) Transposition Tables (TT)
+### Move Ordering: Transposition Tables (TT)
 
 <div class="concept-anchor">
     <div class="anchor-icon">🧠</div>
@@ -1021,6 +1017,8 @@ DELETE FROM frontier_nodes WHERE is_check = 0 AND ...
 ```
 </details>
 
+### Heuristic: Forward Futility Pruning (FFP)
+
 While *Reverse* Futility Pruning works on the parent nodes *before* generating moves, *Forward* Futility Pruning aggressively culls the resulting *children* right *after* they are born. You might wonder: couldn't both checks just happen at the same level? No, because the distinction is about *timing*. RFP's entire value lies in skipping the expensive move generation step altogether — in SQL terms, avoiding the massive JOINs. FFP, on the other hand, culls quiet child moves whose evaluations are hopelessly far below our `alpha` threshold.
 
 Crucially, FFP is strictly bypassed if either the parent node was in check, or the move itself gives check to the opponent's king. Without this safeguard, a checking move might be discarded simply because the immediate, static snapshot of the board looks weak—causing the engine to miss a winning sequence of forced opponent responses.
@@ -1135,17 +1133,17 @@ if (is_quiet(m) && move_index > 4 && ply + 3 <= limit) {
 </details>
 
 #### The Relational Approach
-In our BPVS loop, late batches are intentionally searched at an artificially lower depth.
+In our BPVS loop, late batches (Batch 2+, representing moves 5 and beyond) are intentionally searched at an artificially lower depth.
 
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
-Only Batch 0 is evaluated at full depth. For all subsequent batches, the Javascript orchestrator intentionally sends a SQL query asking DuckDB to calculate the board states with a lower depth. If any rows surprising beat our `alpha` threshold, they are flagged and expanded again at the correct, full depth.
+Both Batch 0 (the PV or best Hash move) and Batch 1 (high-priority tactical moves) are searched at full depth. For Batch 2 and subsequent batches, if the search depth is greater than 2, the Javascript orchestrator sends a SQL query asking DuckDB to calculate the board states with a reduced depth horizon (`target_depth - 1`). If any moves surprisingly beat our `alpha` threshold, they are flagged and re-searched at the full intended depth.
 
 ```javascript
-// Orchestrator: If we are in a late batch, artificially reduce the depth horizon
+// Orchestrator: If we are in Batch 2+ (moves 5+), reduce depth for LMR
 let search_depth = target_depth;
-if (batch_id > 0 && target_depth > 2) {
+if (batch_id > 1 && target_depth > 2) {
     search_depth = target_depth - 1; 
 }
 
@@ -1272,7 +1270,7 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 - **JS DFS (Reference)**: An imperative JavaScript port of the same engine, implementing the identical evaluation function and the full chain of optimisations in a standard recursive Depth-First Search. This represents the ultimate in sequential pruning efficiency, acting as a control variable showing us the "ideal" node count when execution and transactional overhead are near-zero.
 - **Stockfish 18 (Ceiling)**: The world's strongest open-source chess engine, defining the absolute performance ceiling.
 
-*(Disclaimer: The "Nodes" metric for the SQL engine reflects the raw internal volume of state rows inserted into our `search_tree` table across all iterative deepening passes. It is an internal performance metric, not a strict mathematical "Perft" leaf-node count. For the JS engine and Stockfish, it is the standard node count reported by their respective search loops. Because the JS reference is a direct port using the identical evaluation logic, the counts are directly comparable: each "node" represents a single board evaluation. The gap between them is the literal, quantified "node count overhead" of the relational model.)*
+*(Disclaimer: The "Nodes" metric for the SQL engine reflects the raw internal volume of state rows inserted into our `search_tree` table across all iterative deepening passes. It is an internal performance metric, not a strict mathematical "Perft" leaf-node count. For the JS engine, the nodes represent the exact number of board evaluations visited during the search loop. Because the JS reference is a direct port using the identical evaluation logic, its node count represents the "ideal" sequential search path with zero relational overhead. For Stockfish, the node count represents its own highly sophisticated internal search statistics (incorporating extensive pruning, neural network evaluations, and search extensions), which is fundamentally incomparable as a direct mathematical node-to-node comparison but serves as a high-level reference for its search footprint.)*
 
 ### Board 1: Start Position
 <small><code>rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1</code></small>
@@ -1503,6 +1501,8 @@ The comparison of QS against an additional search ply on Board 2 and Board 3 hig
 | **Deeper QS<br/>(`4 + QS=2`)** | `e2a6` | **414K** | 15.9s | 2.6 GB |
 | **Brute Force<br/>(`5 + QS=0`)** | `e2a6` | **67K** | 5.1s | 844 MB |
 
+* **Board 1 (Start Position) & Board 4 (Endgame):** These positions further confirm this pattern. On the quiet opening Board 1, moving from `4 + QS=0` to `4 + QS=2` only slightly increases nodes from 20K to 33K due to the low density of tactical capture lines at the start of a game. However, on the endgame Board 4, selective capture expansions under `4 + QS=1` cause a massive 6.5× spike in node count (from 5.5K to 36K) and more than double the search time (from 1.9s to 4.1s) as the engine speculatively chases long, quiet rook/pawn lines. Crucially, a clean, brute-force depth 5 search (`5 + QS=0`) evaluates nearly the same number of nodes (39K) but executes in just 3.4 seconds—once again proving that full-ply search scaling with structural pruning is faster than transactional selective extensions.
+
 This reveals a fascinating relational paradox: **selectively extending capture lines via QS can be more expensive than a deeper brute-force search ply.** 
 
 In traditional imperative engines, Quiescence Search is a lightweight, absolute cornerstone of tactical safety; sequentially evaluating a leaf-node capture carries almost zero overhead. In a relational database, however, this equation is completely inverted:
@@ -1543,7 +1543,7 @@ The highly optimised heuristics of our engine allow us to clearly isolate the tr
 
 Ultimately, correct bounds propagation through the Transposition Table is the prerequisite for reliable strategic convergence. With correct bounds in place, the relational engine proves itself to be remarkably robust, stable, and tactically sound.
 
-### 7. Under the Hood: Profiling and Query Plans
+### Under the Hood: Profiling and Query Plans
 
 If you've spent any time tuning analytical databases, the final question is: where does the time actually go?
 
