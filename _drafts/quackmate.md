@@ -216,15 +216,13 @@ Quack-Mate embraces the brute force of set theory by applying all moves simultan
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
-Calculating absolute pin masks dynamically in pure SQL is agonisingly inefficient. Instead, we skip the messy pre-validation entirely and simply *apply* all pseudo-legal moves (via our ultra-fast bitwise XORs) to spawn a massive CTE of `expanded_states`, and then we filter the illegal boards out.
+Calculating absolute pin masks dynamically in pure SQL is incredibly inefficient. Instead, Quack-Mate skips pre-validation: we *apply* all pseudo-legal moves in bulk to spawn a CTE of `expanded_states`, then filter the illegal boards. 
 
-To understand why this is feasible in SQL, we have to look at how imperative engines manage memory. To save space and allocation overhead, classical engines typically maintain only a *single* chessboard object in memory. To test a move, the engine mutates that singular state, evaluates it, and then explicitly "un-makes" or takes back the move to restore the board for the next iteration of its `for` loop. SQL flips this paradigm on its head: generating massive sets of independent, immutable rows is what the relational engine does best.
+While classical engines maintain a single board state and sequentially "make" and "un-make" moves in a loop to conserve memory, SQL excels at generating massive sets of independent, immutable rows simultaneously. 
 
-The mechanism for identifying and dropping those illegal rows is surprisingly elegant. To check legality concurrently across millions of these distinct states without the need for complex pin-masks, we perform a "backwards" attack check. In practice, this means we use the enemy pieces' own movement rules in reverse, starting from the King. We look at the King's new square and execute an `EXISTS` subquery finding out if, for example, a Knight placed on the King's square would hit any actual enemy Knights.
+To filter out the illegal states without complex pin-masks, we check legality concurrently using a "backwards" attack check: we trace attacks in reverse starting from the King's square. By executing an `EXISTS` subquery that bitwise `AND`s precomputed attack masks against the unexploded enemy bitboards, we compress a massive, multi-row O(N) piece-explosion per state into a fast O(1) lookup.
 
 <img src="/assets/images/quackmate_move_validation_rays.png" alt="Diagram showing ray tracing from the King's perspective vs attackers" width="450" style="display: block; margin: 0 auto;"/>
-
-By checking backwards, we completely skip this secondary bitboard explosion. We constantly track our single King's square, so we only need to perform **one** lookup into the precomputed table per child state. The resulting query row hands us the backward attack masks for all piece types simultaneously. We then simply bitwise `AND` those masks against the fully compacted, unexploded enemy bitboards. This approach successfully reduces a massive, multi-row O(N) piece-explosion per state into a blazing fast O(1) lookup.
 
 ```sql
 SELECT * FROM expanded_states m
@@ -541,15 +539,13 @@ To make the engine actually playable, elegance had to make way for pragmatism. I
 
 At its foundation, however, BPVS abandons the single recursive SQL query in favour of a lightweight, external Javascript loop acting as an orchestrator. This orchestrator contains no chess logic; its sole responsibility is to track the search state and execute a standard chess technique called **Iterative Deepening**.
 
-Instead of telling DuckDB to search directly to Depth N, the Javascript orchestrator runs a series of discrete searches: Depth 1, then restarting from the root to reach Depth 2, then restarting again for Depth 3, and so on. This might sound incredibly wasteful—why throw away the tree and start over?—but it solves two massive problems:
-*   **Memory Efficiency:** A single recursive CTE query is an atomic operation that must hold every intermediate step in memory simultaneously. By breaking the search into discrete transactions, we can physically `DELETE` the massive working tables between iterations, forcing DuckDB to clear its RAM. More importantly, because Iterative Deepening enables effective **Move Ordering** (the art of searching the best moves first to trigger early Alpha-Beta cutoffs—a concept we will explore in detail in the following sections), the tree we build during our final iteration is heavily *pruned*. This resulting tree is exponentially smaller than the unpruned tree a recursive CTE is forced to generate.
-*   **Query Bounds:** The Javascript orchestrator doesn't execute a single SQL query per iteration. Instead, to reach Depth 3, it fires a highly controlled sequence of discrete SQL queries: `expand(0->1)`, then `expand(1->2)`, followed by `evaluate(2)`, and finally `bubble_up(2->0)`. Javascript doesn't perform any of these evaluations or bubbling math itself—it contains zero chess logic. It simply acts as a puppet master, orchestrating the state machine by firing the appropriate SQL queries in the correct order. Because the database engine cannot dynamically update Alpha-Beta pruning thresholds mid-query, this sequence allows the orchestrator to pause between SQL executions, read the resulting bounds, and dynamically inject them into the *next* SQL string.
+Instead of telling DuckDB to search directly to Depth N, the Javascript orchestrator runs a series of discrete searches: Depth 1, then restarting from the root to reach Depth 2, then restarting again for Depth 3, and so on. This might sound wasteful—why throw away the tree and start over?—but it solves two massive problems:
+*   **Memory Efficiency:** A single recursive CTE query is an atomic operation that must hold every intermediate step in memory simultaneously. By breaking the search into discrete transactions, we can physically `DELETE` working tables between iterations, forcing DuckDB to clear its RAM. More importantly, it enables **Move Ordering** (searching the best moves first to trigger early Alpha-Beta cutoffs), meaning the final iteration's search tree is heavily pruned and exponentially smaller.
+*   **Query Bounds:** The database engine cannot dynamically update Alpha-Beta pruning thresholds mid-query. By orchestrating a controlled sequence of discrete SQL queries (`expand`, `evaluate`, and `bubble_up`), the Javascript puppet master can "pause" between database executions, read the resulting bounds, and dynamically inject them into the next SQL string.
 
-But this raises a glaring question: why restart from Depth 0, duplicating the work of previous iterations? Couldn't we just save the final Depth 2 tree in a table, and exclusively run `expand(2->3)` on its leaves? 
+But why restart from Depth 0, duplicating the work of previous iterations, instead of saving the Depth 2 tree and simply expanding its leaves? 
 
-We could, but doing so destroys Alpha-Beta pruning! Alpha-Beta works by establishing a "score to beat" (Alpha) as early as possible. To get a strong Alpha for a Depth 3 search, the engine must start at the root, follow the single most promising path (the Principal Variation) down to Depth 3, evaluate it, and bubble that new score back up to the top. Only armed with that updated global threshold can the engine safely prune terrible branches branching off from Depth 1. If we simply expanded all the old Depth 2 leaves simultaneously, we would have no global threshold to test them against. Furthermore, as new scores are generated at Depth 3, bubbling them back up and updating the evaluations of a massive, pre-existing Depth 2 SQL tree is computationally disastrous. Because a chess tree grows exponentially, the "duplicated work" of simply regenerating those shallow nodes is mathematically negligible compared to the staggering amount of time saved by pruning with a fresh, updated map.
-
-It is this "fresh map" that makes Iterative Deepening the crucial prerequisite for all advanced pruning. Because the engine restarts the search from the root every iteration, it gets to carry over the knowledge it gained from the previous depth. By the time we begin generating the tree for Depth 3, our global Transposition and History tables are already packed with the results from Depth 2. This gives us an incredibly accurate map of which moves we should prioritise searching first!
+Doing so destroys Alpha-Beta pruning! To get a strong pruning threshold (Alpha) early, the engine must trace the single most promising path (the Principal Variation) down to the target depth, evaluate it, and bubble that score back up. Only armed with this updated global bound can the engine safely prune terrible branches at shallow levels. Because the chess tree grows exponentially, the cost of regenerating shallow nodes is mathematically negligible (typically under 3% of the total search time) compared to the staggering savings of pruning with a highly accurate transposition table built during the previous iteration.
 
 ### The Pruning Prerequisite: Move Ordering
 
@@ -1249,21 +1245,14 @@ AND (
 
 ## The Granularity Paradox: Throughput vs. Pruning
 
-There is a fundamental conflict at the heart of Quack-Mate. To make a database fast, you want to feed it massive amounts of data at once (**High Throughput**). But to make a chess engine fast, you want to look at as little data as possible (**High Pruning**). 
+A fundamental conflict lies at the heart of Quack-Mate. Analytical databases are built for large-scale parallel processing (**High Throughput**), whereas chess engines rely on searching as little data as possible (**High Pruning**). This tension creates a **Granularity Paradox** in three key areas:
 
-### 1. The "Chatty" Overhead
-This creates a **Granularity Paradox**. DuckDB is an analytical engine built for "Big Data," but Alpha-Beta pruning is inherently "Small Data." To keep the search smart, we must fire hundreds of "micro-queries" that only process 40 or 50 moves at a time. This "chattiness" means the engine spends a significant portion of its time on query initialisation and planning rather than actual calculation.
+1. **The Chatty Overhead**: To keep the search intelligent, we must fire hundreds of sequential "micro-queries" that only process 40 or 50 moves at a time. This "chattiness" means the engine spends a large portion of its time on query initialization and planning rather than actual calculation.
+2. **The Scaling Wall**: Because individual workloads are tiny, adding more CPU cores is often counterproductive; thread synchronization costs exceed bitboard evaluation benefits. We cannot simply search deeper in a single query to saturate the hardware, as the exponential branch growth (30x per ply) easily outpaces linear core scaling (e.g., 16x), burying the database in garbage nodes.
+3. **ACID vs. Speed**: Traditional chess engines achieve massive parallel speedups using lockless, shared-memory threads (Lazy SMP). Relational databases, built for ACID integrity, cannot do this. Running concurrent SQL updates on a shared transposition table causes threads to queue up at the database lock level, running no faster than a single thread.
 
-### 2. The Scaling Wall
-This granularity is also why **parallelisation fails**. Because the individual workloads are so small, adding more CPU cores is often counter-productive; the system spends more time managing synchronisation barriers and thread locks than it does evaluating bitboards. 
-
-We cannot "fill the cores" by searching deeper in a single query, either. CPU cores scale **linearly** (16x), but the chess tree branches **exponentially** (30x per ply). Skipping pruning for even one ply to saturate the hardware generates 30x more garbage nodes—a trade-off that always loses.
-
-### 3. ACID vs. Speed
-Classical engines (C++, Rust) bypass sequential bottlenecks using **Lazy SMP**—independent search threads that share a lockless hash map in RAM. SQL databases, designed for **ACID integrity**, cannot do this. They must synchronise concurrent writers to protect data consistency. In a relational engine, 16 threads attempting to update the same table simultaneously would simply queue up at the database lock level, running no faster than a single thread.
-
-**Quack-Mate’s solution is an uneasy compromise:** 
-We land in a technical "no-man’s land." We pay a high price in **throughput** because of the SQL query overhead, and we pay a price in **intelligence** because batching prevents the pixel-perfect pruning of a true Depth-First search. Quack-Mate doesn’t "solve" the paradox so much as it survives it. By focusing on a single, high-speed sequential thread and carefully tuned batches, we find a narrow path that allows a relational database to behave like a chess engine—even if it has to fight its own architecture at every ply.
+**Quack-Mate’s solution is an uneasy compromise:**
+We land in a technical "no-man's land"—paying a high price in SQL planning overhead and sacrificing pixel-perfect sequential pruning for vectorized batch throughput. By focusing on a single, high-speed sequential thread and carefully tuned batch sizes, we find a narrow path that allows a relational database to behave like a chess engine—even if it has to fight its own architecture at every ply.
 
 
 ## Benchmarking the SQL Optimisations
@@ -1375,7 +1364,7 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 | JS DFS (Reference) | b4f4 | 10 | 945 | 34 | 1319.7 |
 
 
-## QUIESCENCE SEARCH (QS) VS. DEPTH +1 COMPARISON
+### Quiescence Search vs. Depth +1 Comparison
 
 Even after several optimisations, complex positions require several seconds to evaluate at max Depth 4, which is certainly not very deep. Since expanding the entire tree to Depth 5 is too expensive for our SQL architecture, we want to see if we can find a smarter compromise: how far can we get with **Depth 4 + Quiescence Search**?
 
