@@ -1673,8 +1673,6 @@ Though admittedly much slower than established engines written in C++ or Rust, t
 
 Essentially, this project confirmed the somewhat obvious conclusion: a relational database will never match the performance of a dedicated, imperative engine for a task it was never meant to perform. However, that was never the point. 
 
-> *"The value of Quack-Mate lies in the exploration itself—demonstrating that with enough creative orchestration, the boundaries of 'what SQL can do' are far wider, more flexible, and more interesting than we often imagine."*
-
 The exploration proves that even in the most "unsuitable" environments, the combination of elegant data structures like bitboards and the brute force of a modern analytical engine can produce something genuinely functional, slightly mad, and entirely unexpected.
 
 
