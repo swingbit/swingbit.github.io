@@ -1243,16 +1243,7 @@ AND (
 ```
 </details>
 
-## The Granularity Paradox: Throughput vs. Pruning
 
-A fundamental conflict lies at the heart of Quack-Mate. Analytical databases are built for large-scale parallel processing (**High Throughput**), whereas chess engines rely on searching as little data as possible (**High Pruning**). This tension creates a **Granularity Paradox** in three key areas:
-
-1. **The Chatty Overhead**: To keep the search intelligent, we must fire hundreds of sequential "micro-queries" that only process 40 or 50 moves at a time. This "chattiness" means the engine spends a large portion of its time on query initialization and planning rather than actual calculation.
-2. **The Scaling Wall**: Because individual workloads are tiny, adding more CPU cores is often counterproductive; thread synchronization costs exceed bitboard evaluation benefits. We cannot simply search deeper in a single query to saturate the hardware, as the exponential branch growth (30x per ply) easily outpaces linear core scaling (e.g., 16x), burying the database in garbage nodes.
-3. **ACID vs. Speed**: Traditional chess engines achieve massive parallel speedups using lockless, shared-memory threads (Lazy SMP). Relational databases, built for ACID integrity, cannot do this. Running concurrent SQL updates on a shared transposition table causes threads to queue up at the database lock level, running no faster than a single thread.
-
-**Quack-Mate’s solution is an uneasy compromise:**
-We land in a technical "no-man's land"—paying a high price in SQL planning overhead and sacrificing pixel-perfect sequential pruning for vectorized batch throughput. By focusing on a single, high-speed sequential thread and carefully tuned batch sizes, we find a narrow path that allows a relational database to behave like a chess engine—even if it has to fight its own architecture at every ply.
 
 
 ## Benchmarking the SQL Optimisations
@@ -1439,9 +1430,11 @@ To resolve leaf-node tactical instability (the Horizon Effect) without drowning 
 | Stockfish 18 (5 + QS=∞) | b4f4 | 97 | 246 | 1 | 422.2 |
 
 
-## The Anatomy of Performance in SQL
+## The Granularity Paradox: Throughput vs. Pruning
 
-To understand how a relational database behaves as a chess engine, we must bridge the gap between raw data and algorithmic theory. Three reference points anchor this analysis. **Stockfish 18** is the unreachable ceiling: evaluating hundreds of millions of nodes per second through hand-tuned SIMD intrinsics. **JS DFS (Reference)** represents our control variable, showing us the perfect sequential search path with zero database friction. The **SQL engine** is then evaluated relative to these controls.
+To understand how a relational database behaves as a chess engine, we must bridge the gap between raw data and algorithmic theory. At the heart of this post-mortem lies a fundamental conflict: analytical databases are built for large-scale parallel processing (**High Throughput**), whereas chess engines rely on searching as little data as possible (**High Pruning**). This tension creates a **Granularity Paradox** that shapes every performance characteristic of our relational engine.
+
+Three reference points anchor this analysis: **Stockfish 18** (the unreachable ceiling of hand-tuned SIMD intrinsics), **JS DFS (Reference)** (our control variable representing the perfect sequential search path with zero database friction), and the **SQL engine** itself.
 
 ### 1. Correctness and the "Intelligence Tax"
 
@@ -1449,7 +1442,7 @@ To understand how a relational database behaves as a chess engine, we must bridg
 
 However, correctness comes at a price known as the **"Intelligence Tax."** Because SQL processes moves in batches, it cannot update its pruning thresholds sequentially. Sibling moves evaluated in the same batch cannot benefit from a threshold update triggered by a previous sibling in that same batch. While the JS reference engine might navigate the start position in just 1.7K nodes, the SQL engine evaluates 20K nodes — a **10× to 15× increase** in raw node volume. This gap represents the quantified algorithmic overhead introduced by batch-based relational execution, where the engine cannot dynamically adjust pruning parameters mid-query based on individual node results.
 
-### 2. Scaling and Throughput: The Concurrency Paradox
+### 2. The Scaling Wall and "Chatty" Overhead
 
 This brings us to the question of hardware: can we simply throw more CPU cores at this BFS overhead to narrow the gap?
 
@@ -1460,8 +1453,10 @@ Even under this denser workload, the database's parallel performance reveals the
 
 <img src="/assets/images/quackmate_threads.png" alt="Plot showing search time scaling by thread count across different board positions" width="700" style="display: block; margin: 2rem auto;"/>
 
-#### Relational Query Throughput
-Despite the scaling wall, the volumetric data throughput of the SQL engine is notable. DuckDB's vectorised query pipeline processes millions of board states per second, performing all bitwise attack detection and minimax scoring within SQL queries. In endgame scenarios with restricted search trees, the engine completes its search in 2.0 seconds, demonstrating that the vectorised execution model is highly efficient when the search space is limited.
+#### Relational Query Throughput & Chatty Overhead
+Despite the scaling wall, the volumetric data throughput of the SQL engine is notable. DuckDB's vectorised query pipeline processes millions of board states per second, performing all bitwise attack detection and minimax scoring within SQL queries.
+
+However, this raw throughput is severely throttled by **"Chatty" Query Overhead**. DuckDB is an analytical engine built for massive parallel scans ("Big Data"), but Alpha-Beta pruning is inherently "Small Data." To keep the search tree intelligent and pruned, we must execute hundreds of sequential "micro-queries" that only process 40 or 50 moves at a time. Consequently, the engine spends a large portion of its time on query initialization, parsing, and execution planning rather than performing actual mathematical calculations. In endgame scenarios with restricted search trees, this transactional friction dominates, making the sequential query loop the primary performance bottleneck.
 
 ### 3. Resource Management: Memory and Transaction Constraints
 
