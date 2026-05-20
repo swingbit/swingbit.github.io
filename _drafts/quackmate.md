@@ -1436,13 +1436,13 @@ To understand how a relational database behaves as a chess engine, we must bridg
 
 Three reference points anchor this analysis: **Stockfish 18** (the unreachable ceiling of hand-tuned SIMD intrinsics), **JS DFS (Reference)** (our control variable representing the perfect sequential search path with zero database friction), and the **SQL engine** itself.
 
-### 1. Correctness and the "Intelligence Tax"
+### Correctness and the "Intelligence Tax"
 
 **The SQL engine is correct and tactically sound.** Across our benchmarks, it consistently matches the move selections and evaluations of the JS DFS reference control. This confirms that the batch-based search model does not systematically distort the evaluation logic.
 
 However, correctness comes at a price known as the **"Intelligence Tax."** Because SQL processes moves in batches, it cannot update its pruning thresholds sequentially. Sibling moves evaluated in the same batch cannot benefit from a threshold update triggered by a previous sibling in that same batch. While the JS reference engine might navigate the start position in just 1.7K nodes, the SQL engine evaluates 20K nodes — a **10× to 15× increase** in raw node volume. This gap represents the quantified algorithmic overhead introduced by batch-based relational execution, where the engine cannot dynamically adjust pruning parameters mid-query based on individual node results.
 
-### 2. The Scaling Wall and "Chatty" Overhead
+### The Scaling Wall and "Chatty" Overhead
 
 This brings us to the question of hardware: can we simply throw more CPU cores at this BFS overhead to narrow the gap?
 
@@ -1458,7 +1458,7 @@ Despite the scaling wall, the volumetric data throughput of the SQL engine is no
 
 However, this raw throughput is severely throttled by **"Chatty" Query Overhead**. DuckDB is an analytical engine built for massive parallel scans ("Big Data"), but Alpha-Beta pruning is inherently "Small Data." To keep the search tree intelligent and pruned, we must execute hundreds of sequential "micro-queries" that only process 40 or 50 moves at a time. Consequently, the engine spends a large portion of its time on query initialization, parsing, and execution planning rather than performing actual mathematical calculations. In endgame scenarios with restricted search trees, this transactional friction dominates, making the sequential query loop the primary performance bottleneck.
 
-### 3. Resource Management: Memory and Transaction Constraints
+### Resource Management: Memory and Transaction Constraints
 
 Traditional chess engines manage memory manually; SQL databases use buffer pools and transaction managers. This introduces unique structural bottlenecks.
 
@@ -1470,7 +1470,7 @@ Memory isolation profiling reveals a significant performance discrepancy: the Pe
 
 This represents **transactional undo log overhead** rather than a memory leak. Because the relational engine mutates intermediate states within active transactions, DuckDB's Multi-Version Concurrency Control (MVCC) must maintain a comprehensive transactional undo log to support potential rollbacks. When pruning optimisations restrict the evaluated node count from **4.1M (ID)** to **26K (LMR)**, the transaction log footprint shrinks proportionally, reducing the Peak RSS footprint.
 
-### 4. Relational Friction: Move Ordering and ACID Costs
+### Relational Friction: Move Ordering and ACID Costs
 
 In classical engines, lookups cost nanoseconds. In a relational engine, every heuristic comes with a "join tax."
 
@@ -1480,9 +1480,9 @@ Every move ordering heuristic (TT, PST, History) requires an explicit `LEFT JOIN
 #### The MVCC and ACID Tax
 Even in-memory, DuckDB is a fully ACID-compliant database. Every `INSERT` and `DELETE` must be tracked via Multi-Version Concurrency Control (MVCC) to guarantee isolation. While a C++ engine can brutally overwrite a 64-bit integer, DuckDB must allocate and track relational row states — a constant, unavoidable tax on pure SQL chess.
 
-### 5. Search Dynamics and Quiescence Search Efficiency
+### Search Dynamics and Quiescence Search Efficiency
 
-The addition of **Quiescence Search (QS)** is a key optimisation in the project, demonstrating the classic chess engine trade-off: **tactical safety vs. search depth**.
+The addition of **Quiescence Search (QS)** demonstrates the classic computer chess trade-off: **tactical safety vs. search depth**. However, in a relational database engine, this trade-off behaves in highly counter-intuitive ways, revealing the steep relational penalty of selective search extensions.
 
 #### Horizon Effect Resolution
 The comparison of QS against an additional search ply on Board 2 and Board 3 highlights key efficiency and tactical stability differences in the relational engine:
@@ -1503,34 +1503,20 @@ The comparison of QS against an additional search ply on Board 2 and Board 3 hig
 | **Deeper QS<br/>(`4 + QS=2`)** | `e2a6` | **414K** | 15.9s | 2.6 GB |
 | **Brute Force<br/>(`5 + QS=0`)** | `e2a6` | **67K** | 5.1s | 844 MB |
 
-This is a critical finding: **a pure brute-force depth 5 search (`5 + QS=0`) is highly efficient, outperforming quiescence-extended search at depth 4 in both execution time and node count!**
+This reveals a fascinating relational paradox: **selectively extending capture lines via QS can be more expensive than a deeper brute-force search ply.** 
 
-With robust Iterative Deepening PV search and Transposition Table integration, the correct minimax lines are immediately identified and propagated down the tree. Alpha-beta bounds prune the search tree with maximum efficiency:
-* **Board 2:** The brute-force `5 + QS=0` search evaluates just **276K nodes** in **10.2 seconds**—outperforming `4 + QS=2` (which takes **315K nodes** and **13.9 seconds**) in both speed and node efficiency.
-* **Board 3 (KiwiPete):** The difference is even more dramatic. `5 + QS=0` gets the correct `e2a6` move in a blistering **5.1 seconds** and only **67K nodes**—making it **3× faster** and **6× more node-efficient** than the quiescence-extended `4 + QS=2` search (**15.9 seconds** and **414K nodes**).
+In traditional imperative engines, Quiescence Search is a lightweight, absolute cornerstone of tactical safety; sequentially evaluating a leaf-node capture carries almost zero overhead. In a relational database, however, this equation is completely inverted:
+1. **The Transaction and Join Tax:** Expanding selective capture lines requires full query iterations, complete with SQL joins, table scans, and MVCC transaction log overhead. In tactical mid-games, capture density blooms, causing the selective capture "tail" to blow up the database workload.
+2. **Brute Force Pruning is Cheaper:** A clean brute-force depth 5 search (`5 + QS=0`) is highly structured. Backed by optimized move-ordering, alpha-beta cutoffs propagate instantly down clean, complete plies. This massive pruning efficiency allows `5 + QS=0` to evaluate far fewer nodes and run faster than `4 + QS=2` (e.g., taking just 5.1 seconds and 67K nodes on KiwiPete compared to 15.9 seconds and 414K nodes).
 
-#### The Transactional and Join-Based Overhead of Quiescence Search
-In a relational SQL chess engine, every ply of search carries a transactional and join-based overhead. When we enable **Quiescence Search (`QS=2`)**, we extend *all* active capture lines at the leaf nodes (ply 4) by up to 2 plies. In complex mid-games (Board 2) and highly tactical positions (KiwiPete), captures are incredibly abundant. Extending all these capture lines forces the database to generate and evaluate a massive selective "tail" of capture variations.
-
-Conversely, because a clean brute-force `5 + QS=0` search uses optimised move-ordering and a fully working Transposition Table, the alpha-beta algorithm achieves near-perfect cutoffs, brutally pruning entire sub-branches before they are even expanded. 
-
-This leads to a fascinating relational paradox: **selectively extending capture lines via QS can sometimes be more expensive than searching a full extra brute-force ply!** While Quiescence Search remains highly valuable at shallow depths to resolve tactical instability, once the engine's core search and pruning heuristics are fully optimised and functioning correctly, a deeper brute-force search (`5 + QS=0`) leverages the full power of sequential pruning and transactional efficiency far better than a selectively bloated quiescence tree.
-
-#### The Disappointment of Relational QS: A Paradigm Shift
-This revelation represents a significant paradigm shift from classical, low-level chess engine design. In a traditional imperative engine, Quiescence Search is a lightweight, absolute cornerstone of tactical safety. Evaluating a leaf-node capture in a sequential pointer-based tree carries almost zero overhead, meaning a deep, selective capture search is incredibly cheap. 
-
-In a relational database, however, this equation is completely inverted:
-1. **The Join and Transaction Tax:** Expanding a capture line requires a full query iteration, complete with SQL joins, table scans, and transaction log overhead. When captures are abundant, extending all capture lines forces the database to process a wide, unpredictable "tactical tail".
-2. **Brute Force is Cheaper:** Conversely, a pure brute-force depth 5 search (`5 + QS=0`) is highly structured. When backed by a fully populated Transposition Table and solid move-ordering, alpha-beta cutoffs propagate instantly down clean, complete plies. This massive pruning efficiency makes a full depth-5 search faster and more node-efficient than trying to selectively explore the capture tail at depth 4.
-
-Ultimately, while Quiescence Search works well at shallow depths to avoid basic tactical blind spots, it is highly disappointing as a scaling strategy in SQL. In a relational database, **sequential, highly pruned full-ply search scales significantly better than selective transactional extensions.**
+Ultimately, while selective Quiescence Search works well at shallow depths to resolve immediate tactical blindness, it fails as a scaling strategy. In a relational database, **highly pruned, full-ply searches scale significantly better than selective transactional extensions.**
 
 #### Sequential vs. Parallel Search Discrepancies
 At deep horizons, you will notice occasional score and move selection differences between the JS DFS and SQL engines. This is a direct consequence of **TT granularity** and **speculative pruning**. 
 
 Because the SQL engine performs TT lookups in bulk at the start of a batch (whereas the JS DFS engine performs them individually at each node), and because PVS evaluations are executed in sets, the learning order of the **Late Move Reduction (LMR)** history weights and **Killer move tables** diverges. In deep tactical searches, these small heuristic order differences compound, leading the two engines to prune different sub-branches and select slightly different moves. This illustrates the fundamental design difference between sequential pruning efficiency and batched relational throughput.
 
-### 6. Heuristic Pruning & Strategic Convergence
+### Heuristic Pruning & Strategic Convergence
 
 One of the most fascinating phenomena in computer chess is **Search Instability**—the paradoxical effect where adding more selective pruning heuristics causes the engine's choice of move to fluctuate erratically or select a tactically inferior option. 
 
