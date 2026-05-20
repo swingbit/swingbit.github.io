@@ -1164,7 +1164,7 @@ await db.query(sql);
 
 One of the biggest weaknesses of a fixed-depth chess search is the **Horizon Effect**. If our engine searches strictly to Depth 4, it might evaluate a position as highly favourable because it captures an opponent's piece on ply 4, completely blind to the fact that the opponent will recapture our piece on ply 5 (which lies just past the "horizon" of the search). This leads to severe tactical blunders.
 
-Quiescence Search (QS) solves this by extending the search beyond the fixed depth limit. Once the main search reaches its depth horizon (`depth = maxDepth`), it enters a restricted QS phase. In this phase, we strictly evaluate **only captures and promotions** recursively until a "quiet" position is reached. 
+Quiescence Search (QS) solves this by extending the search beyond the fixed depth limit. Once the main search reaches its depth horizon (`depth = maxDepth`), it enters a restricted QS phase. In this phase, we strictly evaluate **only captures and promotions** recursively until a "quiet" position is reached. The maximum additional depth this phase is allowed to extend is a configurable parameter, denoted **`QS=N`** throughout this post: `QS=0` disables the phase entirely; `QS=1` allows one extra ply of capture-only search at the leaf nodes; `QS=2` allows up to two, and so on.
 
 However, if the king is currently **in check**, the engine cannot simply "stand pat" (accept static evaluation) because it is in an illegal, unresolved position. Moreover, we cannot restrict moves to captures alone—we must generate **all legal quiet evasions** as well as captures to try to escape the check, and we must bypass the stand-pat and delta pruning cutoffs entirely to resolve the check legally.
 
@@ -1248,7 +1248,7 @@ AND (
 
 To truly understand how Quack-Mate performs, we need to look at the numbers. While the browser-based WebAssembly implementation is constrained to a strict 4GB memory limit, I wanted to capture the true absolute ceiling of the SQL architecture. Therefore, the following benchmarks were intentionally executed outside the browser using a native Node.js DuckDB 1.5.2 instance on an Intel i9-12900T with 64GB of RAM. 
 
-To ensure a complete, normalised comparison across the entire progression tree, I ran the engine at **Depth 4** on a single thread across four positions selected from the well-known "Perft" suites. This depth limit is a structural necessity: at Depth 5, exhaustive configurations like `Recursive (Exhaustive)` and `ID (Exhaustive)` easily exceed 64GB of RAM and trigger Out-Of-Memory (OOM) crashes on complex boards, showing the harsh reality of the combinatorial explosion in relational schemas.
+To ensure a complete, normalised comparison across the entire progression tree, I ran the engine at **Depth 4 with Quiescence Search disabled (QS=0)** on a single thread across four positions selected from the well-known "Perft" suites. This depth limit is a structural necessity: at Depth 5, exhaustive configurations like `Recursive (Exhaustive)` and `ID (Exhaustive)` easily exceed 64GB of RAM and trigger Out-Of-Memory (OOM) crashes on complex boards, showing the harsh reality of the combinatorial explosion in relational schemas.
 
 For clarity, the configurations build upon each other cumulatively. The abbreviations used in the tables correspond to the following standard chess techniques:
 - **ID**: Iterative Deepening
