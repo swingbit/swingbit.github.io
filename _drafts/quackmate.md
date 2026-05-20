@@ -2,7 +2,7 @@
 layout: post
 title: Quack-Mate
 subtitle: Pushing the Boundaries of Pure SQL Chess
-# date: 2026-03-01
+date: 2026-05-20
 tags: chess duckdb sql
 ---
 
@@ -13,10 +13,10 @@ tags: chess duckdb sql
 
 I know what you're thinking: SQL is a terrible language for a chess engine. And you're right. It is inherently designed for set-based data retrieval, not for the highly branching, depth-first search of traditional engines. My intention with Quack-Mate wasn't to dethrone Stockfish, but to explore a single, slightly mad question: just how far can we push a modern analytical database to play chess?
 
-> **TL;DR:** Is it possible to build a playable chess engine in pure SQL? Though it's not trivial, the answer is a definitive yes. **Quack-Mate** explores the inevitable collision between the set-based execution models of database engines and the sequential, depth-first reasoning required for efficient chess.
+> **TL;DR:** Is it possible to build a playable chess engine in pure SQL? Though it's not trivial, the answer is "yes, with conditions". **Quack-Mate** explores the inevitable collision between the set-based execution models of database engines and the sequential, depth-first reasoning required for efficient chess.
 <br>
 <br>
-A playable compromise between these two opposing forces requires trading off both the algorithmic superiority of traditional engines and the raw data-crunching throughput of modern analytical databases. The result is a functional engine that proves an 'unsuitable' paradigm can be stretched to perform, even if the experiment ultimately illustrates why the divide between sets and trees remains so deep.
+A playable compromise between these two opposing forces requires trading off both the algorithmic superiority of traditional engines and the raw data-crunching throughput of modern analytical databases. The result is a functional engine that proves an 'unsuitable' paradigm can be stretched to perform—and a clear-eyed look at exactly why the divide between sets and trees runs so deep.
 
 Here is the Quack-Mate user interface in action. You can [play the WebAssembly (WASM)](https://swingbit.github.io/quack-mate/) version online in your browser, or [run the interface locally](https://github.com/swingbit/quack-mate) using the native Node.js DuckDB driver for a significant performance boost. As the engine thinks, the interface exposes the exact SQL queries executing under the hood in real-time, alongside checkboxes to toggle specific move ordering or lossy pruning heuristics and a complete breakdown of detailed search statistics:
 
@@ -83,9 +83,9 @@ Alternatively, you could reach for larger or non-standard SQL data types, but th
 - **Snowflake**: Its primary numeric type is `NUMBER`, but its internal engine and bitwise functions (like `BITAND`, `BITSHIFTLEFT`) actually operate on and return signed 128-bit integers.
 - **PostgreSQL (via Extension)**: While lacking native support in core, the specialised `pg-uint128` extension adds unsigned 128-bit integers (which can introduce query execution overhead when processing operations over non-native extension types).
 
-This is precisely where DuckDB shines. I eventually focused on it because it hits the exact sweet spot: it provides native `UBIGINT` support to avoid 128-bit overhead, while its high-performance analytical engine allows us to process massive game trees entirely in-process. While a few other databases also support unsigned 64-bit integers (such as MySQL, MariaDB, and ClickHouse), DuckDB’s unique architecture provides the perfect environment for a SQL-based engine to prove its worth.
+This is precisely where DuckDB shines. I eventually focussed on it because it hits the exact sweet spot: it provides native `UBIGINT` support to avoid 128-bit overhead, while its high-performance analytical engine allows us to process massive game trees entirely in-process. While a few other databases also support unsigned 64-bit integers (such as MySQL, MariaDB, and ClickHouse), DuckDB’s unique architecture provides the perfect environment for a SQL-based engine to prove its worth.
 
-By storing the entire game state as a single database row containing 12 `UBIGINT` columns, we can finally translate chess computations into pure, vectorised SQL operations. The mechanical efficiency of bitboards is most striking when moving a piece down the search tree. Instead of looping over a traditional array to painstakingly clear "Square A1" and write to "Square A2", a move mathematically distills down to two simple square-presence flips. By applying two bitwise `XOR` operations against the original bitboard—one to toggle off the "from" square, and one to toggle on the "to" square—the piece instantly teleports to its new destination.
+By storing the entire game state as a single database row containing 12 `UBIGINT` columns, we can finally translate chess computations into pure, vectorised SQL operations. The mechanical efficiency of bitboards is most striking when moving a piece down the search tree. Instead of looping over a traditional array to painstakingly clear "Square A1" and write to "Square A2", a move mathematically distils down to two simple square-presence flips. By applying two bitwise `XOR` operations against the original bitboard—one to toggle off the "from" square, and one to toggle on the "to" square—the piece instantly teleports to its new destination.
 
 In short: `board ^= (square_from | square_to)`:
 
@@ -1663,3 +1663,7 @@ A few things do translate well. Bitboards map cleanly onto DuckDB's `UBIGINT` ve
 The conclusion is unsurprising but worth stating plainly: **a relational database will not beat a dedicated chess engine**. That was never a realistic goal. What this project does demonstrate is that the problem is tractable — a SQL engine can be made to play legal, tactical, reasonably intelligent chess at modest depth, using only standard SQL and a modern OLAP engine. For a tool that was never meant to do any of this, that is a result worth exploring.
 
 
+
+---
+
+<small><em>A note on AI use: the banner and logo are AI-generated (Google Gemini). During development, AI helped with some refactoring and debugging; for this post, it served as a reviewer and editor.</em></small>
