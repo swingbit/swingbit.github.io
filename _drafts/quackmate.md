@@ -1650,29 +1650,16 @@ The SQL approach absolutely imposes massive limitations (like the severe overhea
 
 ## A Playable Conclusion
 
-So, is a pure SQL chess engine feasible? The answer is a resounding "yes, but with conditions." 
+Is a pure SQL chess engine feasible? Yes — but not without real costs.
 
-Quack-Mate demonstrates that while you *can* force a relational database to play a game of adversarial search, the victory comes only after a series of heavy engineering compromises. To make SQL chess work, we had to abandon the memory-efficient simplicity of traditional Depth-First Search (DFS) and invent a hybrid architecture — **Batched Principal Variation Search (BPVS)** — that balances SQL's thirst for wide parallelisation against the strict pruning required to survive combinatorial explosion. 
+To make SQL chess work, the memory-efficient simplicity of recursive Depth-First Search had to be abandoned entirely. In its place, **Batched Principal Variation Search (BPVS)** was designed specifically to balance SQL's preference for wide, parallel batch operations against the strict sequential pruning that chess demands.
 
-### The Engine's Balance Sheet
+The benchmarks confirm what one would expect. The SQL engine is **correct**: it consistently selects sound moves and matches the JS DFS reference across configurations. It is also, unavoidably, **slow**: even with a full stack of heuristics, evaluating a position at Depth 4 takes 2–3 seconds, and the gap to a sequential imperative engine is roughly 10–15× in node volume. Multi-threading offers no meaningful relief — the search tree is too narrow and sequential to fill DuckDB's parallel pipeline, and thread coordination overhead cancels out any gain above 8 cores. Worth noting, though: parallelism comes entirely for free here, since DuckDB's thread pool is automatic. The engine exploits whatever hardware is available without a single line of threading code.
 
-The project revealed a fascinating tension between two very different computing paradigms:
+The root cause is structural. Relational overhead — join cost, MVCC bookkeeping, transactional writes — is fixed per query, regardless of how few rows are processed. Alpha-Beta pruning is inherently "Small Data," but DuckDB was built for "Big Data." Every heuristic that adds a pruning shortcut in the chess sense also adds a SQL join in the relational sense.
 
-*   **The Positive Findings:** Modern OLAP engines like DuckDB are mathematically terrifying. Forcing the engine to execute simultaneous bitwise XORs and Piece-Square Table lookups across a vector of 2,048 board states is virtually "free" in CPU terms. By pushing these pruning thresholds into the generated SQL as hardcoded literals, we successfully offloaded the heaviest filtering to the database's own query optimiser, transforming complex game logic into efficient table scans.
-*   **The Negative Realities:** We are ultimately fighting the "Join Overhead" and the "Transactional Overhead." A C++ engine can move a piece by mutating a single 64-bit integer in a register. A SQL engine, no matter how fast, must still manage Row-IDs, MVCC undo buffers, and relational joins. While the math is fast, the structural bookkeeping required to maintain an immutable game tree in a relational schema is a massive, unavoidable overhead.
+A few things do translate well. Bitboards map cleanly onto DuckDB's `UBIGINT` vectorised arithmetic. Move ordering via `ORDER BY`, static evaluation via `JOIN`, and bulk pruning via `WHERE` all benefit from the query engine's native strengths. Quiescence Search, however, is a poor fit: selective capture extensions trigger full query iterations and MVCC overhead in ways that a plain brute-force extra ply handles more efficiently.
 
-### Techniques and Trade-offs
-
-This experiment confirmed that some classical chess techniques translate beautifully to SQL, while others remain fundamentally incompatible:
-*   **Highly Compatible:** Bitboards (natively parallel via UBIGINT), static Piece-Square Tables (relational JOINs), and Move Ordering (sorting of result sets).
-*   **Incompatible:** Complex search heuristics like NNUE (which require non-relational procedural logic) and extremely deep DFS searches (which would necessitate either millions of independent queries or one monolithic query that causes the database to spill its RAM to disk).
-
-### Final Thoughts
-
-Though admittedly much slower than established engines written in C++ or Rust, the combination of DuckDB and the BPVS strategies makes Quack-Mate genuinely playable up to a depth of 5. For an engine written essentially entirely in SQL, dragging an analytical database kicking and screaming into the world of adversarial game trees is a tremendous achievement.
-
-Essentially, this project confirmed the somewhat obvious conclusion: a relational database will never match the performance of a dedicated, imperative engine for a task it was never meant to perform. However, that was never the point. 
-
-The exploration proves that even in the most "unsuitable" environments, the combination of elegant data structures like bitboards and the brute force of a modern analytical engine can produce something genuinely functional, slightly mad, and entirely unexpected.
+The conclusion is unsurprising but worth stating plainly: **a relational database will not beat a dedicated chess engine**. That was never a realistic goal. What this project does demonstrate is that the problem is tractable — a SQL engine can be made to play legal, tactical, reasonably intelligent chess at modest depth, using only standard SQL and a modern OLAP engine. For a tool that was never meant to do any of this, that is a result worth exploring.
 
 
