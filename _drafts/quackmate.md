@@ -139,7 +139,7 @@ while (knights) {
 
 
 #### The Relational Approach
-Generating next moves isn't done piece-by-piece; it's a massive, concurrent `JOIN` operation. 
+Generating next moves isn't done piece-by-piece; it's a massive, concurrent `JOIN` operation. Quack-Mate supports all standard legal chess moves—including castling and pawn promotions—with the sole exception of the en-passant rule. While essential for full chess compliance, implementing the dynamic, history-dependent state tracking for en-passant in pure SQL adds significant query complexity for an edge case that is extremely rare in casual play. By omitting it, the database schema and move generation joins remain clean and highly streamlined. 
 
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to expand technical details</summary>
@@ -780,7 +780,7 @@ ORDER BY (
 
 In chess, many different sequences of moves can lead to the exact same board position (a transposition). Without memory, an engine will stupidly re-evaluate the same position millions of times. A Transposition Table (TT) solves this by acting as a global cache. 
 
-To identify these repeating positions, Quack-Mate (like most modern engines) utilises a **Zobrist Hash**, a brilliant application of bitwise math. A random, static 64-bit number is pre-generated for every possible piece type appearing on every possible square (yielding an array of 12 piece types × 64 squares = 768 random numbers, plus a handful of extras to track castling rights and turn order). To calculate the hash for any board state, the engine simply takes the random numbers corresponding to the pieces currently on the board, the turn order, and the castling rights, and XORs (`^`) them all together. *(Note: Quack-Mate omits the En Passant rule entirely. While essential for a competitive engine, implementing the dynamic state tracking for en passant in pure SQL adds significant complexity for a rule that is relatively rare in casual play. By omitting it, the schema and move generation logic remain significantly more streamlined).* Because `A ^ A = 0`, engines can update this hash incredibly fast incrementally: if a Knight moves from g1 to f3, the engine just takes the old board hash, XORs it by `random_White_Knight_g1` to remove the piece, and then XORs by `random_White_Knight_f3` to place it.
+To identify these repeating positions, Quack-Mate (like most modern engines) utilises a **Zobrist Hash**, a brilliant application of bitwise math. A random, static 64-bit number is pre-generated for every possible piece type appearing on every possible square (yielding an array of 12 piece types × 64 squares = 768 random numbers, plus a handful of extras to track castling rights and turn order). To calculate the hash for any board state, the engine simply takes the random numbers corresponding to the pieces currently on the board, the turn order, and the castling rights, and XORs (`^`) them all together. Because `A ^ A = 0`, engines can update this hash incredibly fast incrementally: if a Knight moves from g1 to f3, the engine just takes the old board hash, XORs it by `random_White_Knight_g1` to remove the piece, and then XORs by `random_White_Knight_f3` to place it.
 
 **The Currency of the Cache: Remaining Depth**
 Before discussing how engines store these hashes, it is critical to understand *what* they are actually storing. A Transposition Table does not care how many moves it took to *reach* a board position; it only cares about the quality of the evaluation, which is dictated by how many moves *ahead* the engine looked. 
