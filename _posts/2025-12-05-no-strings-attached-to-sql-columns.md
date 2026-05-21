@@ -313,8 +313,8 @@ The shortest inlined string is the empty string, which is encoded as `0x00000000
 The opposite, storing a short string as a `ustr`, is equally trivial.
 
 Note that the IDs of inlined strings always have the highest byte set to 0.
-In principle, this would leave the address space for the dictionary index almost untouched, with (2^56)-1 possible indices.
-In the PoC, for simplicity, I avoided using the entire highest byte for the dictionary index, which leaves us with 2^48 usable indices (8 bits for FBI, 8 bits for SSI).
+In principle, this would leave the address space for the dictionary index almost untouched, with $255 \times 2^{56}$ (or $2^{64} - 2^{56}$) possible indices—preserving $99.6\%$ of the full 64-bit address space.
+In the PoC, for simplicity, the entire highest byte is excluded from the dictionary index, which leaves us with 2^48 usable indices (8 bits for FBI, 8 bits for SSI).
 Still more than sufficient for any practical purpose.
 
 Short String Inlining is not a new idea, but one that fits very well with the `ustr` atom.
@@ -322,7 +322,7 @@ Because First Byte Inlining stores the first byte in the lowest byte of the ID, 
 That is, `sd_id_get_first_byte()` does not even need to know whether the ID is a short string or a dictionary ID.
 
 Its effectiveness depends of course on the nature of the data, but short strings are more common than one might think,
-and this targeted optimisation is hard to bead.
+and this targeted optimisation is hard to beat.
 
 
 ## State of the Art: Compression vs Normalisation
