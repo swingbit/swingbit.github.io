@@ -75,7 +75,9 @@ wN_bb ^ square_mask
 
 This is how modern engines evaluate positions millions of times per second.
 
-To replicate this state-of-the-art representation in a database, we hit an immediate wall. Standard SQL *does not have* unsigned 64-bit integers. PostgreSQL, for example, natively only has a signed `BIGINT` (which uses 1 bit for the sign, leaving 63 bits—useless for a full 64-square board!). You *could* painstakingly use a signed `BIGINT`, but it requires injecting lots of computationally expensive conditions into every query just to mask and handle the sign bit correctly. 
+To replicate this state-of-the-art representation in a database, we hit an immediate wall. Standard SQL *does not have* unsigned 64-bit integers. 
+
+One option is to use SQL bitstring types (like PostgreSQL's `BIT(64)`), which natively allow manipulating 64 bits correctly. However, these are generally much less efficient than native integer types when performing large-scale operations. Alternatively, we could use a standard signed `BIGINT` (like `int8` in PostgreSQL). However, a signed 64-bit integer uses the 64th bit as the sign bit. The primary issue this introduces is with the right-shift operator (`>>`), which performs an arithmetic shift (propagating the sign bit) instead of a logical shift. Painstakingly using a signed `BIGINT` is possible, but it requires injecting computationally expensive masking conditions into every query just to isolate and handle the sign bit correctly. 
 
 Alternatively, you could reach for larger or non-standard SQL data types, but this solution isn't optimal either:
 - **ClickHouse**: The leader in this space, offering native 128-bit (`UInt128`) and even 256-bit unsigned integers.
@@ -234,9 +236,9 @@ WHERE NOT EXISTS (
     WHERE ap.square = m.king_sq
     AND (
         -- If we conceptually place a Knight on the King's square, does it hit an enemy Knight?
-        (m.enemy_knights_bb & ap.knight_mask) > 0 OR
+        (m.enemy_knights_bb & ap.knight_mask) <> 0 OR
         -- ... does it hit an enemy pawn? ... etc
-        (m.enemy_pawns_bb & ap.pawn_mask) > 0
+        (m.enemy_pawns_bb & ap.pawn_mask) <> 0
     )
     -- (A similar subquery checks sliding pieces through mobility_precomputed)
 )
