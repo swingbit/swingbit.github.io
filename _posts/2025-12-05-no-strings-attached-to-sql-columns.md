@@ -313,7 +313,7 @@ The shortest inlined string is the empty string, which is encoded as `0x00000000
 The opposite, storing a short string as a `ustr`, is equally trivial.
 
 Note that the IDs of inlined strings always have the highest byte set to 0.
-In principle, this would leave the address space for the dictionary index almost untouched, with 255 * 2^56 (or 2^64 - 2^56) possible indices—preserving 99.6% of the full 64-bit address space.
+In principle, this would leave the address space for the dictionary index almost untouched, with 255 * 2^56 possible indices—preserving 99.6% of the full 64-bit address space.
 In the PoC, for simplicity, the entire highest byte is excluded from the dictionary index, which leaves us with 2^48 usable indices (8 bits for FBI, 8 bits for SSI).
 Still more than sufficient for any practical purpose.
 
