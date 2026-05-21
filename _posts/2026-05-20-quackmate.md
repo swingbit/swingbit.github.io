@@ -1463,7 +1463,7 @@ Pure recursive or breadth-first searches are susceptible to combinatorial memory
 #### The Transactional Undo Log and Memory Footprints
 Memory isolation profiling reveals a significant performance discrepancy: the Peak RSS memory footprint drops from ~14.8 GB under **Iterative Deepening (ID) Exhaustive** to ~1.7 GB under **BPVS + LMR** on Board 2. 
 
-This represents **transactional undo log overhead** rather than a memory leak. Because the relational engine mutates intermediate states within active transactions, DuckDB's Multi-Version Concurrency Control (MVCC) must maintain a comprehensive transactional undo log to support potential rollbacks. When pruning optimisations restrict the evaluated node count from **4.1M (ID)** to **26K (LMR)**, the transaction log footprint shrinks proportionally, reducing the Peak RSS footprint.
+This represents **transactional undo log overhead** rather than a memory leak. Because the relational engine mutates intermediate states within active transactions, DuckDB's Multi-Version Concurrency Control (MVCC) must maintain a comprehensive transactional undo log to support potential rollbacks. When pruning optimisations restrict the evaluated node count from **4.1M (ID)** to **26K (LMR)**, the transaction log footprint shrinks proportionally, reducing the Peak RSS footprint. This highlights a key architectural shift: while standard C++ engines treat selective pruning heuristics as optional performance enhancements, in a relational database they are structural necessities required to prevent transactional state tracking from swamping the system.
 
 ### Relational Friction: Move Ordering and ACID Costs
 
@@ -1531,14 +1531,7 @@ However, with robust **Iterative Deepening PV tracking** and **Transposition Tab
 | **Aggressive Pruning<br/>(`+ RFP`)** | `c3d5` | -60 | **9.6K** | 2.3s |
 | **Re-balanced<br/>(`+ FFP + LMR`)** | `c3d5` | -170 | **26K** | 2.9s |
 
-#### The Architectural Trade-Off: Sequential DFS vs. Batched BFS
-The highly optimised heuristics of our engine allow us to clearly isolate the true architectural cost of relational execution:
 
-1. **Sequential DFS (The Sequential Ideal):** In a traditional chess engine (like our JS DFS reference), alpha-beta bounds propagate sequentially and instantly at every single node, maintaining an extremely narrow search window. This sequential feedback loop is highly efficient, allowing the JS engine to navigate the board in just 1.5K nodes.
-2. **Batched BFS (The Relational Reality):** Because the SQL engine executes moves in parallel batches, it cannot update or propagate pruning thresholds instantly mid-query. As a result, the database must evaluate sibling moves in the same batch without the benefit of cutoffs triggered by their predecessors. This is the **"algorithmic gap"**—an unavoidable consequence of trading sequential feedback for batch-based relational throughput.
-3. **Speculative Pruning Success:** To offset the relational search overhead, speculative heuristics (RFP, LMR, FFP) are essential. While C++ engines use them to squeeze out extra plies, in a SQL database they are structural necessities to keep transaction logs and MVCC overhead from swamping the system.
-
-Ultimately, correct bounds propagation through the Transposition Table is the prerequisite for reliable strategic convergence. With correct bounds in place, the relational engine proves itself to be remarkably robust, stable, and tactically sound.
 
 ### Under the Hood: Profiling and Query Plans
 
