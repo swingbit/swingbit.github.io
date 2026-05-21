@@ -11,7 +11,7 @@ tags: chess duckdb sql
     <div style="text-align: right"><i><small>Image generated with Google Gemini</small></i></div>
 </div>
 
-I know what you're thinking: SQL is a terrible language for a chess engine. And you're right. It is inherently designed for set-based data retrieval, not for the highly branching, depth-first search of traditional engines. My intention with Quack-Mate wasn't to dethrone Stockfish, but to explore a single, slightly mad question: just how far can we push a modern analytical database to play chess?
+I know what you're thinking: SQL is a terrible language for a chess engine. And you're right. It is inherently designed for set-based data retrieval, not for the highly branching, depth-first search of chess engines. My intention with Quack-Mate wasn't to dethrone Stockfish, but to explore a single, slightly mad question: just how far can we push a modern analytical database to play chess?
 
 > **TL;DR:** Is it possible to build a playable chess engine in pure SQL? Though it's not trivial, the answer is "yes, with conditions". **Quack-Mate** explores the inevitable collision between the set-based execution models of database engines and the sequential, depth-first reasoning required for efficient chess.
 <br>
