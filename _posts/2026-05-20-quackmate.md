@@ -292,7 +292,7 @@ Quack-Mate's evaluation is purely mathematical and set-based, leveraging DuckDB�
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
-Integrating a neural network or complex pawn-structure algorithms into a single recursive SQL query is practically impossible without crushing performance. Therefore, Quack-Mate's evaluation remains set-based (the classic Material + PST approach). The SQL engine accomplishes this via a correlated subquery: for each board row, it pivots the 12 bitboard columns into 12 distinct rows on the fly using a `VALUES` table. The engine then performs a single set-based `JOIN` of this massive intermediate set against the pre-computed Piece-Square Table, effortlessly summing up both the material weight and positional bonuses.
+Integrating a neural network or complex pawn-structure algorithms into a single recursive SQL query is practically impossible without crushing performance. Therefore, Quack-Mate's evaluation remains set-based (the classic Material + PST approach). The SQL engine accomplishes this via a correlated subquery: for each board row, it pivots the 12 bitboard columns into 12 distinct rows on the fly using a `VALUES` table. The engine then performs a single set-based `JOIN` of this massive intermediate set against the pre-computed Piece-Square Table, summing up both the material weight and positional bonuses.
 
 ```sql
 SELECT 
@@ -785,7 +785,7 @@ Where engines diverge is how they *store* and enforce this rule.
 
 
 #### The Imperative Approach
-Engines use a blazing-fast 64-bit Zobrist Hash as the primary key in a massive, painstakingly pre-allocated memory map.
+Engines use a fast 64-bit Zobrist Hash as the primary key in a massive, painstakingly pre-allocated memory map.
 
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to expand technical details</summary>
@@ -995,7 +995,7 @@ Quack-Mate executes this pruning natively across the entire `frontier_nodes` tab
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to expand technical details</summary>
 
-This happens before triggering the expensive Move Generation JOINs. This single `DELETE` operation effortlessly vaporises thousands of branches from the tree before DuckDB ever has to calculate their complex pseudo-legal attacks. The dynamic margin is pre-calculated by the orchestrator based on the current loop iteration depth.
+This happens before triggering the expensive Move Generation JOINs. This single `DELETE` operation vaporises thousands of branches from the tree before DuckDB ever has to calculate their complex pseudo-legal attacks. The dynamic margin is pre-calculated by the orchestrator based on the current loop iteration depth.
 
 ```sql
 -- Instantly prune nodes that fail high statically
