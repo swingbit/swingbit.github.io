@@ -251,11 +251,11 @@ int ustrCmp(const void *a, const void *b) {
 }
 ```
 
-However, are we really planning on storing 2^64 unique strings in a single database?
+However, are we really planning on storing 2<sup>64</sup> unique strings in a single database?
 I don't think so. 
 
 What if we use the lowest byte of the ID to store the first byte of the string?
-This leaves us with enough bits to store 2^56 unique strings - more than enough for any practical purpose.
+This leaves us with enough bits to store 2<sup>56</sup> unique strings - more than enough for any practical purpose.
 
 Then we can rewrite `ustrCmp` like this:
 
@@ -313,8 +313,8 @@ The shortest inlined string is the empty string, which is encoded as `0x00000000
 The opposite, storing a short string as a `ustr`, is equally trivial.
 
 Note that the IDs of inlined strings always have the highest byte set to 0.
-In principle, this would leave the address space for the dictionary index almost untouched, with $255 \times 2^{56}$ (or $2^{64} - 2^{56}$) possible indices—preserving $99.6\%$ of the full 64-bit address space.
-In the PoC, for simplicity, the entire highest byte is excluded from the dictionary index, which leaves us with 2^48 usable indices (8 bits for FBI, 8 bits for SSI).
+In principle, this would leave the address space for the dictionary index almost untouched, with 255 * 2<sup>56</sup> (or 2<sup>64</sup> - 2<sup>56</sup>) possible indices—preserving 99.6% of the full 64-bit address space.
+In the PoC, for simplicity, the entire highest byte is excluded from the dictionary index, which leaves us with 2<sup>48</sup> usable indices (8 bits for FBI, 8 bits for SSI).
 Still more than sufficient for any practical purpose.
 
 Short String Inlining is not a new idea, but one that fits very well with the `ustr` atom.
