@@ -1278,18 +1278,18 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | b1c3 | -10 | 206604 | 5112 | 621.0 |
-| ID (Exhaustive) | b1c3 | -10 | 216365 | 4663 | 1214.2 |
-| BPVS (ID + AB + LMP + Batches) | g1f3 | 0 | 57698 | 2901 | 635.9 |
-| + MVVLVA | g1f3 | 0 | 57698 | 3102 | 631.1 |
-| + TT | g1f3 | 0 | 52514 | 2977 | 620.8 |
-| + PST | b1c3 | -10 | 29039 | 2562 | 552.6 |
-| + Killers | b1c3 | -10 | 29038 | 2680 | 554.7 |
-| + History | b1c3 | -10 | 29038 | 2519 | 553.8 |
-| + RFP | b1c3 | -10 | 29038 | 2499 | 540.7 |
-| + FFP | b1c3 | -10 | 20524 | 2419 | 516.1 |
-| + LMR | b1c3 | -10 | 20252 | 2278 | 513.8 |
-| JS DFS (Reference) | b1c3 | -10 | 1750 | 137 | 259.5 |
+| Recursive (Exhaustive) | b1c3 | -10 | 206604 | 4888 | 628.1 |
+| ID (Exhaustive) | b1c3 | -10 | 216365 | 4786 | 1217.4 |
+| BPVS (ID + AB + LMP + Batches) | g1f3 | 0 | 57698 | 3013 | 641.9 |
+| + MVVLVA | g1f3 | 0 | 57698 | 3070 | 627.7 |
+| + TT | g1f3 | 0 | 52514 | 2874 | 608.8 |
+| + PST | b1c3 | -10 | 29039 | 2408 | 544.3 |
+| + Killers | b1c3 | -10 | 29038 | 2565 | 552.2 |
+| + History | b1c3 | -10 | 29038 | 2456 | 548.9 |
+| + RFP | b1c3 | -10 | 29038 | 2521 | 545.3 |
+| + FFP | e2e4 | 0 | 15843 | 2278 | 470.4 |
+| + LMR | e2e4 | 0 | 15843 | 2130 | 468.1 |
+| JS DFS (Reference) | b1c3 | -10 | 1750 | 123 | 245.2 |
 
 ### Board 2: Complex Mid-game
 <small><code>r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10</code></small>
@@ -1298,18 +1298,18 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | c3d5 | -170 | 3984805 | 79430 | 9162.0 |
-| ID (Exhaustive) | c3d5 | -170 | 4078946 | 54247 | 14849.8 |
-| BPVS (ID + AB + LMP + Batches) | d3d4 | -170 | 173428 | 6128 | 2247.0 |
-| + MVVLVA | c3d5 | -170 | 25797 | 2645 | 1608.8 |
-| + TT | c3d5 | -170 | 24797 | 2738 | 1600.1 |
-| + PST | c3d5 | -170 | 27237 | 2787 | 1624.1 |
-| + Killers | c3d5 | -170 | 27237 | 2675 | 1627.0 |
-| + History | c3d5 | -170 | 27237 | 2715 | 1629.3 |
-| + RFP | c3d5 | -60 | 9572 | 2330 | 1563.6 |
-| + FFP | c3d5 | -170 | 10339 | 2502 | 1579.4 |
-| + LMR | c3d5 | -170 | 25662 | 2878 | 1672.0 |
-| JS DFS (Reference) | c3d5 | -170 | 1476 | 105 | 1349.7 |
+| Recursive (Exhaustive) | c3d5 | -170 | 3984805 | 76679 | 9133.5 |
+| ID (Exhaustive) | c3d5 | -170 | 4078946 | 46664 | 14859.9 |
+| BPVS (ID + AB + LMP + Batches) | d3d4 | -170 | 173428 | 5116 | 2253.2 |
+| + MVVLVA | c3d5 | -170 | 25797 | 2506 | 1638.3 |
+| + TT | c3d5 | -170 | 24797 | 2542 | 1628.4 |
+| + PST | c3d5 | -170 | 27237 | 2515 | 1647.4 |
+| + Killers | c3d5 | -170 | 27237 | 2558 | 1660.6 |
+| + History | c3d5 | -170 | 27237 | 2555 | 1631.7 |
+| + RFP | c3d5 | -60 | 9572 | 2359 | 1568.8 |
+| + FFP | g5f6 | 260 | 8336 | 2427 | 1582.2 |
+| + LMR | d3d4 | -160 | 23655 | 2703 | 1663.9 |
+| JS DFS (Reference) | c3d5 | -170 | 1476 | 106 | 1346.9 |
 
 ### Board 3: "KiwiPete" (Highly Tactical)
 <small><code>r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1</code></small>
@@ -1318,18 +1318,18 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | f3f6 | 725 | 4002708 | 86701 | 9358.5 |
-| ID (Exhaustive) | e2a6 | 65 | 4100812 | 52624 | 14840.8 |
-| BPVS (ID + AB + LMP + Batches) | e2a6 | 65 | 88727 | 4011 | 1845.2 |
-| + MVVLVA | e2a6 | 65 | 25240 | 2449 | 1555.3 |
-| + TT | e2a6 | 65 | 25862 | 2572 | 1566.9 |
-| + PST | e2a6 | 65 | 26263 | 2406 | 1568.1 |
-| + Killers | e2a6 | 65 | 26261 | 2580 | 1588.4 |
-| + History | e2a6 | 65 | 26263 | 2547 | 1582.7 |
-| + RFP | e2a6 | 75 | 24900 | 2479 | 1598.7 |
-| + FFP | e2a6 | 75 | 29665 | 2921 | 1648.0 |
-| + LMR | e2a6 | 65 | 8357 | 2118 | 1529.2 |
-| JS DFS (Reference) | e2a6 | 75 | 2195 | 117 | 1323.7 |
+| Recursive (Exhaustive) | f3f6 | 725 | 4002708 | 85846 | 9370.6 |
+| ID (Exhaustive) | e2a6 | 65 | 4100812 | 53394 | 14886.9 |
+| BPVS (ID + AB + LMP + Batches) | e2a6 | 65 | 88727 | 3963 | 1866.7 |
+| + MVVLVA | e2a6 | 65 | 25240 | 2544 | 1587.9 |
+| + TT | e2a6 | 65 | 25862 | 2760 | 1594.1 |
+| + PST | e2a6 | 65 | 26263 | 2742 | 1596.9 |
+| + Killers | e2a6 | 65 | 26261 | 2549 | 1589.3 |
+| + History | e2a6 | 65 | 26263 | 2646 | 1587.9 |
+| + RFP | e2a6 | 75 | 24900 | 2680 | 1608.0 |
+| + FFP | e2a6 | 0 | 18998 | 2687 | 1605.2 |
+| + LMR | e2a6 | 65 | 8959 | 2360 | 1530.0 |
+| JS DFS (Reference) | e2a6 | 75 | 2195 | 123 | 1316.9 |
 
 ### Board 4: Endgame
 <small><code>8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1</code></small>
@@ -1338,18 +1338,18 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | b4f4 | 10 | 46103 | 1374 | 1459.4 |
-| ID (Exhaustive) | b4f4 | 10 | 49336 | 2730 | 1715.3 |
-| BPVS (ID + AB + LMP + Batches) | b4f4 | 10 | 10574 | 2084 | 1539.5 |
-| + MVVLVA | b4f4 | 10 | 11542 | 2103 | 1535.3 |
-| + TT | b4f4 | 10 | 8886 | 2042 | 1533.0 |
-| + PST | b4f4 | 10 | 7608 | 2188 | 1535.1 |
-| + Killers | b4f4 | 10 | 6037 | 2120 | 1529.1 |
-| + History | b4f4 | 10 | 6037 | 2037 | 1526.6 |
-| + RFP | b4f4 | 10 | 6037 | 2039 | 1514.2 |
-| + FFP | b4f4 | 10 | 5584 | 2108 | 1519.2 |
-| + LMR | b4f4 | 10 | 5584 | 1992 | 1524.6 |
-| JS DFS (Reference) | b4f4 | 10 | 945 | 34 | 1319.7 |
+| Recursive (Exhaustive) | b4f4 | 10 | 46103 | 1407 | 1440.4 |
+| ID (Exhaustive) | b4f4 | 10 | 49336 | 3034 | 1710.4 |
+| BPVS (ID + AB + LMP + Batches) | b4f4 | 10 | 10574 | 2105 | 1537.3 |
+| + MVVLVA | b4f4 | 10 | 11542 | 2086 | 1523.3 |
+| + TT | b4f4 | 10 | 8886 | 2110 | 1532.4 |
+| + PST | b4f4 | 10 | 7608 | 2094 | 1537.4 |
+| + Killers | b4f4 | 10 | 6037 | 2098 | 1527.7 |
+| + History | b4f4 | 10 | 6037 | 2166 | 1524.9 |
+| + RFP | b4f4 | 10 | 6037 | 2124 | 1519.1 |
+| + FFP | b4f4 | 10 | 5570 | 2264 | 1518.7 |
+| + LMR | b4f4 | 10 | 5570 | 2328 | 1514.7 |
+| JS DFS (Reference) | b4f4 | 10 | 945 | 33 | 1310.2 |
 
 
 ### Quiescence Search vs. Depth +1 Comparison
@@ -1365,14 +1365,14 @@ To resolve leaf-node tactical instability (the Horizon Effect) without drowning 
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| BPVS + LMR (4 + QS=0) | b1c3 | -10 | 20252 | 2247 | 1573.7 |
-| BPVS + LMR (4 + QS=1) | d2d4 | 0 | 26955 | 4204 | 1792.5 |
-| BPVS + LMR (4 + QS=2) | d2d4 | 0 | 33700 | 5161 | 1894.0 |
-| BPVS + LMR (5 + QS=0) | d2d4 | 110 | 177040 | 6106 | 2333.5 |
-| JS DFS (4 + QS=0) | b1c3 | -10 | 1750 | 114 | 1336.4 |
-| JS DFS (4 + QS=1) | d2d4 | 0 | 2220 | 170 | 1338.1 |
-| JS DFS (4 + QS=2) | d2d4 | 0 | 2314 | 187 | 1338.1 |
-| JS DFS (5 + QS=0) | b1c3 | 110 | 3801 | 207 | 1338.5 |
+| BPVS + LMR (4 + QS=0) | e2e4 | 0 | 15843 | 2217 | 1537.1 |
+| BPVS + LMR (4 + QS=1) | d2d4 | 0 | 26966 | 4310 | 1797.2 |
+| BPVS + LMR (4 + QS=2) | d2d4 | 0 | 33470 | 5426 | 1893.5 |
+| BPVS + LMR (5 + QS=0) | b1c3 | 140 | 114062 | 5350 | 2070.6 |
+| JS DFS (4 + QS=0) | b1c3 | -10 | 1750 | 112 | 1328.7 |
+| JS DFS (4 + QS=1) | d2d4 | 0 | 2220 | 181 | 1331.0 |
+| JS DFS (4 + QS=2) | d2d4 | 0 | 2314 | 185 | 1331.0 |
+| JS DFS (5 + QS=0) | b1c3 | 110 | 3801 | 203 | 1331.0 |
 | Stockfish 18 (5 + QS=∞) | e2e4 | 29 | 541 | 1 | 421.8 |
 
 ### Board 2: Complex Mid-game
@@ -1382,14 +1382,14 @@ To resolve leaf-node tactical instability (the Horizon Effect) without drowning 
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| BPVS + LMR (4 + QS=0) | c3d5 | -170 | 25662 | 2753 | 1657.6 |
-| BPVS + LMR (4 + QS=1) | g5f6 | 260 | 43916 | 4666 | 1853.4 |
-| BPVS + LMR (4 + QS=2) | c3d5 | 85 | 314974 | 13919 | 2556.2 |
-| BPVS + LMR (5 + QS=0) | c3d5 | 85 | 276200 | 10155 | 1763.8 |
-| JS DFS (4 + QS=0) | c3d5 | -170 | 1476 | 101 | 265.8 |
-| JS DFS (4 + QS=1) | e2d2 | 255 | 9913 | 655 | 267.5 |
-| JS DFS (4 + QS=2) | c3d5 | 85 | 5424 | 508 | 267.7 |
-| JS DFS (5 + QS=0) | c3d5 | 410 | 4829 | 238 | 269.5 |
+| BPVS + LMR (4 + QS=0) | d3d4 | -160 | 23655 | 2721 | 1643.5 |
+| BPVS + LMR (4 + QS=1) | g5f6 | 260 | 36942 | 4132 | 1806.6 |
+| BPVS + LMR (4 + QS=2) | c3d5 | 85 | 227055 | 10434 | 2428.9 |
+| BPVS + LMR (5 + QS=0) | c3d5 | 85 | 247169 | 10033 | 1689.6 |
+| JS DFS (4 + QS=0) | c3d5 | -170 | 1476 | 104 | 251.9 |
+| JS DFS (4 + QS=1) | e2d2 | 255 | 9913 | 664 | 253.4 |
+| JS DFS (4 + QS=2) | c3d5 | 85 | 5424 | 494 | 253.4 |
+| JS DFS (5 + QS=0) | c3d5 | 410 | 4829 | 255 | 253.4 |
 | Stockfish 18 (5 + QS=∞) | c3d5 | 178 | 385 | 1 | 422.2 |
 
 ### Board 3: "KiwiPete" (Highly Tactical)
@@ -1399,14 +1399,14 @@ To resolve leaf-node tactical instability (the Horizon Effect) without drowning 
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| BPVS + LMR (4 + QS=0) | e2a6 | 65 | 8357 | 2210 | 452.9 |
-| BPVS + LMR (4 + QS=1) | e2a6 | 270 | 40399 | 4506 | 716.2 |
-| BPVS + LMR (4 + QS=2) | e2a6 | 70 | 413610 | 15851 | 2558.8 |
-| BPVS + LMR (5 + QS=0) | e2a6 | 365 | 67308 | 5060 | 844.2 |
-| JS DFS (4 + QS=0) | e2a6 | 75 | 2195 | 118 | 266.9 |
-| JS DFS (4 + QS=1) | e2a6 | 270 | 6826 | 476 | 268.2 |
-| JS DFS (4 + QS=2) | e2a6 | 75 | 13004 | 1123 | 268.4 |
-| JS DFS (5 + QS=0) | e2a6 | 375 | 7322 | 368 | 268.6 |
+| BPVS + LMR (4 + QS=0) | e2a6 | 65 | 8959 | 2090 | 448.7 |
+| BPVS + LMR (4 + QS=1) | e2a6 | 270 | 35031 | 4249 | 669.3 |
+| BPVS + LMR (4 + QS=2) | e2a6 | 70 | 313404 | 13459 | 2063.0 |
+| BPVS + LMR (5 + QS=0) | e2a6 | 365 | 70415 | 5168 | 804.9 |
+| JS DFS (4 + QS=0) | e2a6 | 75 | 2195 | 115 | 250.2 |
+| JS DFS (4 + QS=1) | e2a6 | 270 | 6826 | 469 | 251.0 |
+| JS DFS (4 + QS=2) | e2a6 | 75 | 13004 | 1129 | 251.0 |
+| JS DFS (5 + QS=0) | e2a6 | 375 | 7322 | 351 | 251.2 |
 | Stockfish 18 (5 + QS=∞) | e2a6 | -128 | 381 | 1 | 422.1 |
 
 ### Board 4: Endgame
@@ -1416,14 +1416,14 @@ To resolve leaf-node tactical instability (the Horizon Effect) without drowning 
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| BPVS + LMR (4 + QS=0) | b4f4 | 10 | 5584 | 1983 | 440.2 |
-| BPVS + LMR (4 + QS=1) | e2e4 | 75 | 36898 | 4168 | 725.1 |
-| BPVS + LMR (4 + QS=2) | b4f4 | 10 | 34522 | 4965 | 766.4 |
-| BPVS + LMR (5 + QS=0) | b4f4 | 110 | 39854 | 3433 | 627.9 |
-| JS DFS (4 + QS=0) | b4f4 | 10 | 945 | 27 | 269.1 |
-| JS DFS (4 + QS=1) | e2e4 | 75 | 2608 | 85 | 270.8 |
-| JS DFS (4 + QS=2) | b4f4 | 10 | 3011 | 100 | 271.1 |
-| JS DFS (5 + QS=0) | b4f4 | 110 | 2827 | 80 | 271.1 |
+| BPVS + LMR (4 + QS=0) | b4f4 | 10 | 5570 | 2009 | 418.6 |
+| BPVS + LMR (4 + QS=1) | e2e3 | 35 | 33169 | 4162 | 688.7 |
+| BPVS + LMR (4 + QS=2) | e2e3 | 10 | 29551 | 4935 | 713.2 |
+| BPVS + LMR (5 + QS=0) | b4f4 | 110 | 37539 | 3647 | 596.1 |
+| JS DFS (4 + QS=0) | b4f4 | 10 | 945 | 35 | 244.5 |
+| JS DFS (4 + QS=1) | e2e4 | 75 | 2608 | 88 | 250.3 |
+| JS DFS (4 + QS=2) | b4f4 | 10 | 3011 | 108 | 250.2 |
+| JS DFS (5 + QS=0) | b4f4 | 110 | 2827 | 79 | 250.2 |
 | Stockfish 18 (5 + QS=∞) | b4f4 | 97 | 246 | 1 | 422.2 |
 
 
@@ -1484,29 +1484,29 @@ The addition of **Quiescence Search (QS)** demonstrates the classic computer che
 #### Horizon Effect Resolution
 The comparison of QS against an additional search ply on Board 2 and Board 3 highlights key efficiency and tactical stability differences in the relational engine:
 
-* **Board 2 (Complex Mid-game):** The brute-force `5 + QS=0` search recommends `c3d5`. The shallow `4 + QS=1` search runs in a blistering 4.7 seconds but plays the suboptimal `g5f6`. While increasing the extension depth to `4 + QS=2` successfully recovers the correct `c3d5` move, it does so in 13.9 seconds—whereas a highly-optimised brute-force `5 + QS=0` search achieves the exact same correct move in just 10.2 seconds!
+* **Board 2 (Complex Mid-game):** The brute-force `5 + QS=0` search recommends `c3d5`. The shallow `4 + QS=1` search runs in a blistering 4.1 seconds but plays the suboptimal `g5f6`. While increasing the extension depth to `4 + QS=2` successfully recovers the correct `c3d5` move, it does so in 10.4 seconds—whereas a highly-optimised brute-force `5 + QS=0` search achieves the exact same correct move in just 10.0 seconds!
 
 | Search Strategy (Board 2) | Move Selected | Nodes Evaluated | Time (s) | Memory (RAM) |
 |---|:---:|:---:|:---:|:---:|
-| **Shallow QS<br/>(`4 + QS=1`)** | `g5f6` | **44K** | 4.7s | 1.9 GB |
-| **Deeper QS<br/>(`4 + QS=2`)** | `c3d5` | **315K** | 13.9s | 2.6 GB |
-| **Brute Force<br/>(`5 + QS=0`)** | `c3d5` | **276K** | 10.2s | 1.8 GB |
+| **Shallow QS<br/>(`4 + QS=1`)** | `g5f6` | **37K** | 4.1s | 1.8 GB |
+| **Deeper QS<br/>(`4 + QS=2`)** | `c3d5` | **227K** | 10.4s | 2.4 GB |
+| **Brute Force<br/>(`5 + QS=0`)** | `c3d5` | **247K** | 10.0s | 1.7 GB |
 
-* **Board 3 (KiwiPete - Highly Tactical):** A similar, highly telling pattern emerges. The correct, stable tactical move is `e2a6` (which captures the bishop on a6, as verified by `Stockfish` and our sequential `JS DFS` baseline across all configurations). Under `4 + QS=1`, the SQL engine successfully finds the correct `e2a6` move in a blistering 4.5 seconds and only 40K nodes. However, when we enable `4 + QS=2`, the search balloons to 414K nodes and 15.9 seconds. Crucially, the optimised brute-force `5 + QS=0` search delivers the correct `e2a6` move in just 5.1 seconds and 67K nodes—performing 6× fewer evaluations than the quiescence-extended search!
+* **Board 3 (KiwiPete - Highly Tactical):** A similar, highly telling pattern emerges. The correct, stable tactical move is `e2a6` (which captures the bishop on a6, as verified by `Stockfish` and our sequential `JS DFS` baseline across all configurations). Under `4 + QS=1`, the SQL engine successfully finds the correct `e2a6` move in a blistering 4.2 seconds and only 35K nodes. However, when we enable `4 + QS=2`, the search balloons to 313K nodes and 13.5 seconds. Crucially, the optimised brute-force `5 + QS=0` search delivers the correct `e2a6` move in just 5.2 seconds and 70K nodes—performing 4.4× fewer evaluations than the quiescence-extended search!
 
 | Search Strategy (Board 3) | Move Selected | Nodes Evaluated | Time (s) | Memory (RAM) |
 |---|:---:|:---:|:---:|:---:|
-| **Shallow QS<br/>(`4 + QS=1`)** | `e2a6` | **40K** | 4.5s | 716 MB |
-| **Deeper QS<br/>(`4 + QS=2`)** | `e2a6` | **414K** | 15.9s | 2.6 GB |
-| **Brute Force<br/>(`5 + QS=0`)** | `e2a6` | **67K** | 5.1s | 844 MB |
+| **Shallow QS<br/>(`4 + QS=1`)** | `e2a6` | **35K** | 4.2s | 669 MB |
+| **Deeper QS<br/>(`4 + QS=2`)** | `e2a6` | **313K** | 13.5s | 2.1 GB |
+| **Brute Force<br/>(`5 + QS=0`)** | `e2a6` | **70K** | 5.2s | 805 MB |
 
-* **Board 1 (Start Position) & Board 4 (Endgame):** These positions further confirm this pattern. On the quiet opening Board 1, moving from `4 + QS=0` to `4 + QS=2` only slightly increases nodes from 20K to 33K due to the low density of tactical capture lines at the start of a game. However, on the endgame Board 4, selective capture expansions under `4 + QS=1` cause a massive 6.5× spike in node count (from 5.5K to 36K) and more than double the search time (from 1.9s to 4.1s) as the engine speculatively chases long, quiet rook/pawn lines. Crucially, a clean, brute-force depth 5 search (`5 + QS=0`) evaluates nearly the same number of nodes (39K) but executes in just 3.4 seconds—once again proving that full-ply search scaling with structural pruning is faster than transactional selective extensions.
+* **Board 1 (Start Position) & Board 4 (Endgame):** These positions further confirm this pattern. On the quiet opening Board 1, moving from `4 + QS=0` to `4 + QS=2` only slightly increases nodes from 16K to 33K due to the low density of tactical capture lines at the start of a game. However, on the endgame Board 4, selective capture expansions under `4 + QS=1` cause a massive 6.0× spike in node count (from 5.6K to 33K) and more than double the search time (from 2.0s to 4.2s) as the engine speculatively chases long, quiet rook/pawn lines. Crucially, a clean, brute-force depth 5 search (`5 + QS=0`) evaluates nearly the same number of nodes (37.5K) but executes in just 3.6 seconds—once again proving that full-ply search scaling with structural pruning is faster than transactional selective extensions.
 
 This reveals a fascinating relational paradox: **selectively extending capture lines via QS can be more expensive than a deeper brute-force search ply.** 
 
 In traditional imperative engines, Quiescence Search is a lightweight, absolute cornerstone of tactical safety; sequentially evaluating a leaf-node capture carries almost zero overhead. In a relational database, however, this equation is completely inverted:
 1. **The Transaction and Join Overhead:** Expanding selective capture lines requires full query iterations, complete with SQL joins, table scans, and MVCC transaction log overhead. In tactical mid-games, capture density blooms, causing the selective capture "tail" to blow up the database workload.
-2. **Brute Force Pruning is Cheaper:** A clean brute-force depth 5 search (`5 + QS=0`) is highly structured. Backed by optimised move-ordering, alpha-beta cutoffs propagate instantly down clean, complete plies. This massive pruning efficiency allows `5 + QS=0` to evaluate far fewer nodes and run faster than `4 + QS=2` (e.g., taking just 5.1 seconds and 67K nodes on KiwiPete compared to 15.9 seconds and 414K nodes).
+2. **Brute Force Pruning is Cheaper:** A clean brute-force depth 5 search (`5 + QS=0`) is highly structured. Backed by optimised move-ordering, alpha-beta cutoffs propagate instantly down clean, complete plies. This massive pruning efficiency allows `5 + QS=0` to evaluate far fewer nodes and run faster than `4 + QS=2` (e.g., taking just 5.2 seconds and 70K nodes on KiwiPete compared to 13.5 seconds and 313K nodes).
 
 Ultimately, while selective Quiescence Search works well at shallow depths to resolve immediate tactical blindness, it fails as a scaling strategy. In a relational database, **highly pruned, full-ply searches scale significantly better than selective transactional extensions.**
 
@@ -1519,19 +1519,19 @@ Because the SQL engine performs TT lookups in bulk at the start of a batch (wher
 
 One of the most fascinating phenomena in computer chess is **Search Instability**—the paradoxical effect where adding more selective pruning heuristics causes the engine's choice of move to fluctuate erratically or select a tactically inferior option. 
 
-In a relational SQL environment, maintaining strategic consistency across different heuristic configurations is a major challenge. Because a database-driven search tree is naturally wide, we rely heavily on pruning heuristics to restrict the evaluated node counts. If these heuristics prune branches too aggressively based on shallow static evaluations, they can introduce critical blind spots. 
+In a relational SQL environment, maintaining strategic consistency across different heuristic configurations is a major challenge. Because a database-driven search tree is naturally wide, we rely heavily on pruning heuristics to restrict the evaluated node counts. If these heuristics prune branches too aggressively based on static evaluations, they can introduce critical blind spots. 
 
-However, with robust **Iterative Deepening PV tracking** and **Transposition Table (TT) integration**, our engine achieves near-perfect strategic stability and convergence. We can see this in how Board 2's evaluation stabilises beautifully across different heuristic configurations:
+With our corrected and more mathematically standard parent-based **Forward Futility Pruning (FFP)**, the engine perfectly demonstrates this classic selective search behavior on Board 2:
 
-* **Strategic Consistency:** The engine consistently identifies the strategically sound minimax move `c3d5` across all configurations, demonstrating that selective pruning does not compromise tactical correctness.
-* **Proportional Node Reductions:** Under **Reverse Futility Pruning (RFP)**, the evaluated node count drops by over **60%** (from 27K down to 9.6K) while maintaining the correct minimax line, though with a slightly optimistic score (`-60`) due to the shallower evaluation of pruned lines. 
-* **Stable Integration:** When combining RFP with **Forward Futility Pruning (FFP)** and **Late Move Reductions (LMR)**, the search tree is perfectly re-balanced, confirming the exact `-170` baseline score in only 26K nodes.
+* **Strategic Exploration & RFP:** Under **Reverse Futility Pruning (RFP)**, the evaluated node count drops by over **64%** (from 27.2K down to 9.5K) while maintaining the correct minimax line, though with a slightly optimistic score (`-60`) due to the shallower evaluation of pruned lines. 
+* **Heuristic Fluctuations (FFP):** Layering parent-based **FFP** prunes certain quiet lines near the search horizon more defensively, shifting the chosen move to `g5f6` (with a score of `260` at only 8.3K nodes).
+* **Late Move Reductions (LMR):** When combining these heuristics with **LMR**, the search tree is dynamically re-balanced, converging on the solid central-strike `d3d4` (`-160` at 23.6K nodes).
 
 | Heuristic Configuration | Move Selected | Evaluation Score | Nodes Evaluated | Time (s) |
 |---|:---:|:---:|:---:|:---:|
-| **Baseline<br/>(`+ History`)** | `c3d5` | -170 | **27K** | 2.7s |
-| **Aggressive Pruning<br/>(`+ RFP`)** | `c3d5` | -60 | **9.6K** | 2.3s |
-| **Re-balanced<br/>(`+ FFP + LMR`)** | `c3d5` | -170 | **26K** | 2.9s |
+| **Baseline<br/>(`+ History`)** | `c3d5` | -170 | **27.2K** | 2.5s |
+| **Aggressive Pruning<br/>(`+ RFP`)** | `c3d5` | -60 | **9.5K** | 2.3s |
+| **Re-balanced<br/>(`+ FFP + LMR`)** | `d3d4` | -160 | **23.6K** | 2.7s |
 
 
 
