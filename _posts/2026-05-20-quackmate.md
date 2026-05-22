@@ -1062,7 +1062,7 @@ AND NOT (
     active_turn_parent = 1 
     AND is_check_parent = 0          -- Parent was NOT in check
     AND gives_check = 0              -- Move DOES NOT give check
-    AND static_eval < loopAlpha - 150
+    AND static_eval_parent < loopAlpha - 150
     AND is_promo = 0
     AND is_capture = 0
 )
