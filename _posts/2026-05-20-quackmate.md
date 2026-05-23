@@ -445,7 +445,7 @@ This maps the sequential, recursive tree traversal of minimax into a highly stru
 > If a game tree contains mixed-depth terminal nodes (such as early checkmates or stalemates at depth 2 while other lines run to depth 4), those shallow leaves begin backpropagating immediately. They reach the upper plies faster than their deep siblings, causing parent nodes to be evaluated **partially** across disjoint recursion steps. To guarantee absolute search correctness across uneven subtrees, Quack-Mate avoids recursive bottom-up minimax CTEs (the Expansion (top-down) phase is still a recursive CTE), instead using **dynamically unrolled bottom-up left join sequences** or sequential depth-by-depth passes to synchronize the score propagation.
 
 <details markdown="1">
-<summary class="tech-detail">🛠️ Click to show the corrected unrolled standard CTE backpropagation</summary>
+<summary class="tech-detail">🛠️ Click to show the corrected backpropagation CTE</summary>
 
 To solve this, Quack-Mate dynamically unrolls the backpropagation ply-by-ply at query-generation time using JavaScript to construct a series of standard CTEs chained sequentially This guarantees perfect score synchronization at every ply, while still producing one single query:
 
