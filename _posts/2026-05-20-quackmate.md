@@ -1500,29 +1500,29 @@ The addition of **Quiescence Search (QS)** demonstrates the classic computer che
 #### Horizon Effect Resolution
 The comparison of QS against an additional search ply on Board 2 and Board 3 highlights key efficiency and tactical stability differences in the relational engine:
 
-* **Board 2 (Complex Mid-game):** The brute-force `5 + QS=0` search recommends `c3d5`. The shallow `4 + QS=1` search runs in a blistering 4.1 seconds but plays the suboptimal `g5f6`. While increasing the extension depth to `4 + QS=2` successfully recovers the correct `c3d5` move, it does so in 10.4 seconds—whereas a highly-optimised brute-force `5 + QS=0` search achieves the exact same correct move in just 10.0 seconds!
+* **Board 2 (Complex Mid-game):** The brute-force `5 + QS=0` search recommends `c3d5`. The shallow `4 + QS=1` search runs in a blistering 5.9 seconds but plays the suboptimal `g5f6`. While increasing the extension depth to `4 + QS=2` successfully recovers a strong tactical response (`c4f7`), it does so in 9.0 seconds and 200K nodes—whereas a highly-optimised brute-force `5 + QS=0` search achieves the correct `c3d5` move in just 8.8 seconds!
 
 | Search Strategy (Board 2) | Move Selected | Nodes Evaluated | Time (s) | Memory (RAM) |
 |---|:---:|:---:|:---:|:---:|
-| **Shallow QS<br/>(`4 + QS=1`)** | `g5f6` | **37K** | 4.1s | 1.8 GB |
-| **Deeper QS<br/>(`4 + QS=2`)** | `c3d5` | **227K** | 10.4s | 2.4 GB |
-| **Brute Force<br/>(`5 + QS=0`)** | `c3d5` | **247K** | 10.0s | 1.7 GB |
+| **Shallow QS<br/>(`4 + QS=1`)** | `g5f6` | **105K** | 5.9s | 1.2 GB |
+| **Deeper QS<br/>(`4 + QS=2`)** | `c4f7` | **200K** | 9.0s | 2.0 GB |
+| **Brute Force<br/>(`5 + QS=0`)** | `c3d5` | **273K** | 8.8s | 1.7 GB |
 
-* **Board 3 (KiwiPete - Highly Tactical):** A similar, highly telling pattern emerges. The correct, stable tactical move is `e2a6` (which captures the bishop on a6, as verified by `Stockfish` and our sequential `JS DFS` baseline across all configurations). Under `4 + QS=1`, the SQL engine successfully finds the correct `e2a6` move in a blistering 4.2 seconds and only 35K nodes. However, when we enable `4 + QS=2`, the search balloons to 313K nodes and 13.5 seconds. Crucially, the optimised brute-force `5 + QS=0` search delivers the correct `e2a6` move in just 5.2 seconds and 70K nodes—performing 4.4× fewer evaluations than the quiescence-extended search!
+* **Board 3 (KiwiPete - Highly Tactical):** A similar, highly telling pattern emerges. The correct, stable tactical move is `e2a6` (which captures the bishop on a6, as verified by `Stockfish` and our sequential `JS DFS` baseline across all configurations). Under `4 + QS=1`, the SQL engine successfully finds the correct `e2a6` move in a blistering 5.0 seconds and only 77K nodes. However, when we enable `4 + QS=2`, the search balloons to 561K nodes and 18.3 seconds. Crucially, the optimised brute-force `5 + QS=0` search delivers the correct `e2a6` move in just 8.1 seconds and 260K nodes—performing more than 2.1× fewer evaluations than the quiescence-extended search!
 
 | Search Strategy (Board 3) | Move Selected | Nodes Evaluated | Time (s) | Memory (RAM) |
 |---|:---:|:---:|:---:|:---:|
-| **Shallow QS<br/>(`4 + QS=1`)** | `e2a6` | **35K** | 4.2s | 669 MB |
-| **Deeper QS<br/>(`4 + QS=2`)** | `e2a6` | **313K** | 13.5s | 2.1 GB |
-| **Brute Force<br/>(`5 + QS=0`)** | `e2a6` | **70K** | 5.2s | 805 MB |
+| **Shallow QS<br/>(`4 + QS=1`)** | `e2a6` | **77K** | 5.0s | 1.0 GB |
+| **Deeper QS<br/>(`4 + QS=2`)** | `e2a6` | **561K** | 18.3s | 3.6 GB |
+| **Brute Force<br/>(`5 + QS=0`)** | `e2a6` | **260K** | 8.1s | 1.4 GB |
 
-* **Board 1 (Start Position) & Board 4 (Endgame):** These positions further confirm this pattern. On the quiet opening Board 1, moving from `4 + QS=0` to `4 + QS=2` only slightly increases nodes from 16K to 33K due to the low density of tactical capture lines at the start of a game. However, on the endgame Board 4, selective capture expansions under `4 + QS=1` cause a massive 6.0× spike in node count (from 5.6K to 33K) and more than double the search time (from 2.0s to 4.2s) as the engine speculatively chases long, quiet rook/pawn lines. Crucially, a clean, brute-force depth 5 search (`5 + QS=0`) evaluates nearly the same number of nodes (37.5K) but executes in just 3.6 seconds—once again proving that full-ply search scaling with structural pruning is faster than transactional selective extensions.
+* **Board 1 (Start Position) & Board 4 (Endgame):** These positions further confirm this pattern. On the quiet opening Board 1, moving from `4 + QS=0` to `4 + QS=2` only slightly increases nodes from 20.8K to 33K due to the low density of tactical capture lines at the start of a game. However, on the endgame Board 4, selective capture expansions under `4 + QS=1` cause a massive 7.5× spike in node count (from 5.5K to 41.7K) and more than double the search time (from 2.0s to 4.1s) as the engine speculatively chases long, quiet rook/pawn lines. Crucially, a clean, brute-force depth 5 search (`5 + QS=0`) evaluates nearly the same number of nodes (57K) in just 4.3 seconds—once again proving that full-ply search scaling with structural pruning is faster than transactional selective extensions.
 
 This reveals a fascinating relational paradox: **selectively extending capture lines via QS can be more expensive than a deeper brute-force search ply.** 
 
 In traditional imperative engines, Quiescence Search is a lightweight, absolute cornerstone of tactical safety; sequentially evaluating a leaf-node capture carries almost zero overhead. In a relational database, however, this equation is completely inverted:
 1. **The Transaction and Join Overhead:** Expanding selective capture lines requires full query iterations, complete with SQL joins, table scans, and MVCC transaction log overhead. In tactical mid-games, capture density blooms, causing the selective capture "tail" to blow up the database workload.
-2. **Brute Force Pruning is Cheaper:** A clean brute-force depth 5 search (`5 + QS=0`) is highly structured. Backed by optimised move-ordering, alpha-beta cutoffs propagate instantly down clean, complete plies. This massive pruning efficiency allows `5 + QS=0` to evaluate far fewer nodes and run faster than `4 + QS=2` (e.g., taking just 5.2 seconds and 70K nodes on KiwiPete compared to 13.5 seconds and 313K nodes).
+2. **Brute Force Pruning is Cheaper:** A clean brute-force depth 5 search (`5 + QS=0`) is highly structured. Backed by optimised move-ordering, alpha-beta cutoffs propagate instantly down clean, complete plies. This massive pruning efficiency allows `5 + QS=0` to evaluate far fewer nodes and run faster than `4 + QS=2` (e.g., taking just 8.1 seconds and 260K nodes on KiwiPete compared to 18.3 seconds and 561K nodes).
 
 Ultimately, while selective Quiescence Search works well at shallow depths to resolve immediate tactical blindness, it fails as a scaling strategy. In a relational database, **highly pruned, full-ply searches scale significantly better than selective transactional extensions.**
 
@@ -1539,15 +1539,15 @@ In a relational SQL environment, maintaining strategic consistency across differ
 
 With our corrected and more mathematically standard parent-based **Forward Futility Pruning (FFP)**, the engine perfectly demonstrates this classic selective search behavior on Board 2:
 
-* **Strategic Exploration & RFP:** Under **Reverse Futility Pruning (RFP)**, the evaluated node count drops by over **64%** (from 27.2K down to 9.5K) while maintaining the correct minimax line, though with a slightly optimistic score (`-60`) due to the shallower evaluation of pruned lines. 
-* **Heuristic Fluctuations (FFP):** Layering parent-based **FFP** prunes certain quiet lines near the search horizon more defensively, shifting the chosen move to `g5f6` (with a score of `260` at only 8.3K nodes).
-* **Late Move Reductions (LMR):** When combining these heuristics with **LMR**, the search tree is dynamically re-balanced, converging on the solid central-strike `d3d4` (`-160` at 23.6K nodes).
+* **Strategic Exploration & RFP:** Under **Reverse Futility Pruning (RFP)**, the evaluated node count drops by over **31%** (from 27.2K down to 18.6K) while maintaining the correct minimax line and achieving its true score of `-170` (previously biased to `-60` by leaked search bounds).
+* **Heuristic Fluctuations (FFP):** Layering parent-based **FFP** prunes certain quiet lines near the search horizon more defensively, shifting the chosen move to `g5f6` (with a score of `260` at only 15.6K nodes).
+* **Late Move Reductions (LMR):** When combining these heuristics with **LMR**, the search tree is dynamically re-balanced. Thanks to the scoping fix which eliminates null-window leakage, the fully optimized engine correctly converges on the optimal minimax move `c3d5` (`-170` at 53.5K nodes) instead of settling for `d3d4` or blundering!
 
 | Heuristic Configuration | Move Selected | Evaluation Score | Nodes Evaluated | Time (s) |
 |---|:---:|:---:|:---:|:---:|
-| **Baseline<br/>(`+ History`)** | `c3d5` | -170 | **27.2K** | 2.5s |
-| **Aggressive Pruning<br/>(`+ RFP`)** | `c3d5` | -60 | **9.5K** | 2.3s |
-| **Re-balanced<br/>(`+ FFP + LMR`)** | `d3d4` | -160 | **23.6K** | 2.7s |
+| **Baseline<br/>(`+ History`)** | `c3d5` | -170 | **27.2K** | 2.6s |
+| **Aggressive Pruning<br/>(`+ RFP`)** | `c3d5` | -170 | **18.6K** | 2.5s |
+| **Re-balanced<br/>(`+ FFP + LMR`)** | `c3d5` | -170 | **53.5K** | 3.8s |
 
 
 
