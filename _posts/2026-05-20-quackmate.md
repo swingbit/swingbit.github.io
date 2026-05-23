@@ -451,7 +451,8 @@ To solve this, Quack-Mate dynamically unrolls the backpropagation ply-by-ply at 
 
 ```sql
 WITH RECURSIVE
-    search_tree AS ( ... ), -- Top-down generation remains recursive
+    -- Top-down generation remains recursive
+    search_tree AS ( ... ),
     
     -- Bottom-up non-recursive CTEs
     minimax_d3 AS (
