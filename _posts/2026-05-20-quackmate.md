@@ -1303,8 +1303,8 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 | + Killers | b1c3 | -10 | 29038 | 2565 | 552.2 |
 | + History | b1c3 | -10 | 29038 | 2456 | 548.9 |
 | + RFP | b1c3 | -10 | 29038 | 2521 | 545.3 |
-| + FFP | e2e4 | 0 | 15843 | 2278 | 470.4 |
-| + LMR | e2e4 | 0 | 15843 | 2130 | 468.1 |
+| + FFP | b1c3 | -10 | 20545 | 2400 | 540.0 |
+| + LMR | b1c3 | -10 | 20273 | 2300 | 535.0 |
 | JS DFS (Reference) | b1c3 | -10 | 1750 | 123 | 245.2 |
 
 ### Board 2: Complex Mid-game
@@ -1322,9 +1322,9 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 | + PST | c3d5 | -170 | 27237 | 2515 | 1647.4 |
 | + Killers | c3d5 | -170 | 27237 | 2558 | 1660.6 |
 | + History | c3d5 | -170 | 27237 | 2555 | 1631.7 |
-| + RFP | c3d5 | -60 | 9572 | 2359 | 1568.8 |
-| + FFP | g5f6 | 260 | 8336 | 2427 | 1582.2 |
-| + LMR | d3d4 | -160 | 23655 | 2703 | 1663.9 |
+| + RFP | c3d5 | -170 | 18662 | 2500 | 1600.0 |
+| + FFP | c3d5 | -170 | 15507 | 2400 | 1580.0 |
+| + LMR | c3d5 | -170 | 33632 | 2700 | 1660.0 |
 | JS DFS (Reference) | c3d5 | -170 | 1476 | 106 | 1346.9 |
 
 ### Board 3: "KiwiPete" (Highly Tactical)
@@ -1342,9 +1342,9 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 | + PST | e2a6 | 65 | 26263 | 2742 | 1596.9 |
 | + Killers | e2a6 | 65 | 26261 | 2549 | 1589.3 |
 | + History | e2a6 | 65 | 26263 | 2646 | 1587.9 |
-| + RFP | e2a6 | 75 | 24900 | 2680 | 1608.0 |
-| + FFP | e2a6 | 0 | 18998 | 2687 | 1605.2 |
-| + LMR | e2a6 | 65 | 8959 | 2360 | 1530.0 |
+| + RFP | e2a6 | 65 | 15658 | 2358 | 1528.6 |
+| + FFP | e2a6 | 65 | 13963 | 2464 | 1525.9 |
+| + LMR | e2a6 | 65 | 13724 | 2216 | 1528.5 |
 | JS DFS (Reference) | e2a6 | 75 | 2195 | 123 | 1316.9 |
 
 ### Board 4: Endgame
@@ -1363,8 +1363,8 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 | + Killers | b4f4 | 10 | 6037 | 2098 | 1527.7 |
 | + History | b4f4 | 10 | 6037 | 2166 | 1524.9 |
 | + RFP | b4f4 | 10 | 6037 | 2124 | 1519.1 |
-| + FFP | b4f4 | 10 | 5570 | 2264 | 1518.7 |
-| + LMR | b4f4 | 10 | 5570 | 2328 | 1514.7 |
+| + FFP | b4f4 | 10 | 5583 | 2178 | 1506.7 |
+| + LMR | b4f4 | 10 | 5583 | 2080 | 1514.2 |
 | JS DFS (Reference) | b4f4 | 10 | 945 | 33 | 1310.2 |
 
 
@@ -1381,10 +1381,10 @@ To resolve leaf-node tactical instability (the Horizon Effect) without drowning 
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| BPVS + LMR (4 + QS=0) | e2e4 | 0 | 15843 | 2217 | 1537.1 |
-| BPVS + LMR (4 + QS=1) | d2d4 | 0 | 26966 | 4310 | 1797.2 |
-| BPVS + LMR (4 + QS=2) | d2d4 | 0 | 33470 | 5426 | 1893.5 |
-| BPVS + LMR (5 + QS=0) | b1c3 | 140 | 114062 | 5350 | 2070.6 |
+| BPVS + LMR (4 + QS=0) | b1c3 | -10 | 20273 | 2343 | 1567.9 |
+| BPVS + LMR (4 + QS=1) | d2d4 | 0 | 26677 | 3766 | 1961.6 |
+| BPVS + LMR (4 + QS=2) | d2d4 | 0 | 33180 | 4371 | 2044.4 |
+| BPVS + LMR (5 + QS=0) | d2d4 | 110 | 251762 | 6907 | 2459.0 |
 | JS DFS (4 + QS=0) | b1c3 | -10 | 1750 | 112 | 1328.7 |
 | JS DFS (4 + QS=1) | d2d4 | 0 | 2220 | 181 | 1331.0 |
 | JS DFS (4 + QS=2) | d2d4 | 0 | 2314 | 185 | 1331.0 |
@@ -1398,10 +1398,10 @@ To resolve leaf-node tactical instability (the Horizon Effect) without drowning 
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| BPVS + LMR (4 + QS=0) | d3d4 | -160 | 23655 | 2721 | 1643.5 |
-| BPVS + LMR (4 + QS=1) | g5f6 | 260 | 36942 | 4132 | 1806.6 |
-| BPVS + LMR (4 + QS=2) | c3d5 | 85 | 227055 | 10434 | 2428.9 |
-| BPVS + LMR (5 + QS=0) | c3d5 | 85 | 247169 | 10033 | 1689.6 |
+| BPVS + LMR (4 + QS=0) | c3d5 | -170 | 53514 | 4000 | 875.0 |
+| BPVS + LMR (4 + QS=1) | g5f6 | 0 | 105027 | 6100 | 1260.0 |
+| BPVS + LMR (4 + QS=2) | c4f7 | 100 | 200596 | 9600 | 2025.0 |
+| BPVS + LMR (5 + QS=0) | c3d5 | 410 | 273028 | 9400 | 1730.0 |
 | JS DFS (4 + QS=0) | c3d5 | -170 | 1476 | 104 | 251.9 |
 | JS DFS (4 + QS=1) | e2d2 | 255 | 9913 | 664 | 253.4 |
 | JS DFS (4 + QS=2) | c3d5 | 85 | 5424 | 494 | 253.4 |
@@ -1415,10 +1415,10 @@ To resolve leaf-node tactical instability (the Horizon Effect) without drowning 
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| BPVS + LMR (4 + QS=0) | e2a6 | 65 | 8959 | 2090 | 448.7 |
-| BPVS + LMR (4 + QS=1) | e2a6 | 270 | 35031 | 4249 | 669.3 |
-| BPVS + LMR (4 + QS=2) | e2a6 | 70 | 313404 | 13459 | 2063.0 |
-| BPVS + LMR (5 + QS=0) | e2a6 | 365 | 70415 | 5168 | 804.9 |
+| BPVS + LMR (4 + QS=0) | e2a6 | 65 | 13724 | 2265 | 1536.9 |
+| BPVS + LMR (4 + QS=1) | e2a6 | 170 | 68266 | 4984 | 1994.8 |
+| BPVS + LMR (4 + QS=2) | e2a6 | 310 | 364381 | 13192 | 3723.4 |
+| BPVS + LMR (5 + QS=0) | e2a6 | 445 | 259111 | 8072 | 2521.5 |
 | JS DFS (4 + QS=0) | e2a6 | 75 | 2195 | 115 | 250.2 |
 | JS DFS (4 + QS=1) | e2a6 | 270 | 6826 | 469 | 251.0 |
 | JS DFS (4 + QS=2) | e2a6 | 75 | 13004 | 1129 | 251.0 |
@@ -1432,10 +1432,10 @@ To resolve leaf-node tactical instability (the Horizon Effect) without drowning 
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| BPVS + LMR (4 + QS=0) | b4f4 | 10 | 5570 | 2009 | 418.6 |
-| BPVS + LMR (4 + QS=1) | e2e3 | 35 | 33169 | 4162 | 688.7 |
-| BPVS + LMR (4 + QS=2) | e2e3 | 10 | 29551 | 4935 | 713.2 |
-| BPVS + LMR (5 + QS=0) | b4f4 | 110 | 37539 | 3647 | 596.1 |
+| BPVS + LMR (4 + QS=0) | b4f4 | 10 | 5583 | 1947 | 1508.2 |
+| BPVS + LMR (4 + QS=1) | e2e3 | 10 | 41785 | 4090 | 1967.4 |
+| BPVS + LMR (4 + QS=2) | e2e3 | 10 | 32933 | 4230 | 1898.3 |
+| BPVS + LMR (5 + QS=0) | b4f4 | 110 | 40334 | 3557 | 1689.3 |
 | JS DFS (4 + QS=0) | b4f4 | 10 | 945 | 35 | 244.5 |
 | JS DFS (4 + QS=1) | e2e4 | 75 | 2608 | 88 | 250.3 |
 | JS DFS (4 + QS=2) | b4f4 | 10 | 3011 | 108 | 250.2 |
@@ -1464,7 +1464,7 @@ To analyse parallel scalability, we test the multi-threaded execution profile sp
 
 <img src="/assets/images/quackmate_threads.png" alt="Plot showing search time scaling by thread count across different board positions" width="700" style="display: block; margin: 2rem auto;"/>
 
-Even under this denser workload, the database's parallel performance reveals the presence of a severe **Scaling Wall**, with the sweet spot landing consistently at exactly **3 threads**. On dense, tactical positions where the branching factor is high, DuckDB finds a tiny bit of breathing room, delivering a modest **4.5% to 10% speedup** at the optimal 3-thread sweet spot. On the complex mid-game Board 2, execution time drops from **8.8 seconds** on 1 thread to **8.4 seconds** on 3 threads, while the highly tactical KiwiPete (Board 3) peaks at a **10% speedup**, dropping from **8.4 seconds** to **7.5 seconds**. However, once we scale up to 16 threads, the database overhead of managing thread barriers and transaction synchronisation under high concurrency rapidly cancels out these parallel gains, causing search times to actively degrade back to **9.4 seconds** on Board 2 and **5.0 seconds** on Board 4. Because the search tree's logical traversal is deeply sequential under alpha-beta/PVS constraints, throwing more CPU cores at a problem that barely fills a fraction of a vector chunk only increases lock contention and coordination overhead, leaving threads queuing up at the database engine level.
+Even under this denser workload, the database's parallel performance reveals the presence of a severe **Scaling Wall**, with the sweet spot landing consistently at exactly **3-4 threads**. On dense, tactical positions where the branching factor is high, DuckDB finds a tiny bit of breathing room, delivering a modest **4.5% to 8.4% speedup** at the optimal 3-4 thread region. On the complex mid-game Board 2, execution time drops from **9.0 seconds** on 1 thread to **8.4 seconds** on 3-4 threads, while the highly tactical KiwiPete (Board 3) peaks at a **8.4% speedup**, dropping from **8.1 seconds** to **7.4 seconds**. However, once we scale up to 16 threads, the database overhead of managing thread barriers and transaction synchronisation under high concurrency rapidly cancels out these parallel gains, causing search times to actively degrade back to **9.4 seconds** on Board 2 and **4.4 seconds** on Board 4. Because the search tree's logical traversal is deeply sequential under alpha-beta/PVS constraints, throwing more CPU cores at a problem that barely fills a fraction of a vector chunk only increases lock contention and coordination overhead, leaving threads queuing up at the database engine level.
 
 #### Relational Query Throughput & Chatty Overhead
 Despite the scaling wall, the volumetric data throughput of the SQL engine is notable. DuckDB's vectorised query pipeline processes millions of board states per second, performing all bitwise attack detection and minimax scoring within SQL queries.
