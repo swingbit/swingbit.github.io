@@ -438,6 +438,62 @@ SELECT score FROM minimax WHERE depth = 0;
 
 This maps the sequential, recursive tree traversal of minimax into a highly structured set of relational operations.
 
+> [!WARNING]
+> **The Mixed-Depth Synchronization Caveat:**
+> While this `WITH RECURSIVE` minimax model is conceptually beautiful, it hides a subtle mathematical bug when applied to real chess games. Under the rules of SQL recursive CTEs, the recursive member only has access to the rows produced in the *immediately preceding step*. 
+> 
+> If a game tree contains mixed-depth terminal nodes (such as early checkmates or stalemates at depth 2 while other lines run to depth 4), those shallow leaves begin backpropagating immediately. They reach the upper plies faster than their deep siblings, causing parent nodes to be evaluated **partially** across disjoint recursion steps. To guarantee absolute search correctness across uneven subtrees, a production SQL chess engine must avoid recursive bottom-up CTEs entirely, instead using **dynamically unrolled bottom-up left join sequences** or sequential depth-by-depth passes to synchronize the score propagation.
+
+<details markdown="1">
+<summary class="tech-detail">🛠️ Click to show the corrected unrolled standard CTE backpropagation</summary>
+
+To solve this, Quack-Mate dynamically unrolls the backpropagation ply-by-ply at query-generation time using JavaScript to construct a series of standard CTEs chained sequentially This guarantees perfect score synchronization at every ply, while still producing one single query:
+
+```sql
+WITH RECURSIVE
+    search_tree AS ( ... ), -- Top-down generation remains recursive
+    
+    -- Bottom-up standard (non-recursive) CTEs
+    minimax_d3 AS (
+        SELECT id, parent_id, static_eval as minimax_eval 
+        FROM search_tree 
+        WHERE depth = 3
+    ),
+    minimax_d2 AS (
+        SELECT 
+            p.id, p.parent_id,
+            COALESCE(
+                CASE WHEN p.is_white_turn THEN MAX(c.minimax_eval) ELSE MIN(c.minimax_eval) END,
+                p.static_eval
+            ) as minimax_eval
+        FROM search_tree p
+        LEFT JOIN minimax_d3 c ON c.parent_id = p.id
+        WHERE p.depth = 2
+        GROUP BY p.id, p.parent_id, p.is_white_turn, p.static_eval
+    ),
+    minimax_d1 AS (
+        SELECT 
+            p.id, p.parent_id,
+            COALESCE(
+                CASE WHEN p.is_white_turn THEN MAX(c.minimax_eval) ELSE MIN(c.minimax_eval) END,
+                p.static_eval
+            ) as minimax_eval
+        FROM search_tree p
+        LEFT JOIN minimax_d2 c ON c.parent_id = p.id
+        WHERE p.depth = 1
+        GROUP BY p.id, p.parent_id, p.is_white_turn, p.static_eval
+    ),
+    minimax AS (
+        SELECT id, minimax_eval FROM minimax_d1
+        UNION ALL
+        SELECT id, minimax_eval FROM minimax_d2
+        UNION ALL
+        SELECT id, minimax_eval FROM minimax_d3
+    )
+SELECT minimax_eval FROM minimax WHERE id = 0;
+```
+</details>
+
 ## The Hard Limits of Elegance
 
 This recursive CTE approach is incredibly neat, but its limitations become apparent rather quickly. It successfully calculates the best move, but it has to analyse *every single possible move* to do so. This is known as an un-pruned search.
@@ -1294,7 +1350,7 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | b1c3 | -10 | 206604 | 5079 | 681.9 |
+| Recursive (Exhaustive) | b1c3 | -10 | 206604 | 5387 | 682.1 |
 | ID (Exhaustive) | b1c3 | -10 | 216365 | 4650 | 1236.8 |
 | BPVS (ID + AB + LMP + Batches) | g1f3 | 0 | 57698 | 2840 | 626.5 |
 | + MVVLVA | g1f3 | 0 | 57698 | 2911 | 619.5 |
@@ -1314,7 +1370,7 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | c3d5 | -170 | 3984805 | 77608 | 9735.7 |
+| Recursive (Exhaustive) | c3d5 | -170 | 3984805 | 81456 | 9734.4 |
 | ID (Exhaustive) | c3d5 | -170 | 4078946 | 47228 | 14999.6 |
 | BPVS (ID + AB + LMP + Batches) | d3d4 | -170 | 173428 | 5548 | 2256.0 |
 | + MVVLVA | c3d5 | -170 | 25797 | 2580 | 1600.2 |
@@ -1334,7 +1390,7 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | f3f6 | 725 | 4002708 | 85140 | 10052.3 |
+| Recursive (Exhaustive) | e2a6 | 65 | 4002708 | 90378 | 10003.9 |
 | ID (Exhaustive) | e2a6 | 65 | 4100812 | 52650 | 14931.7 |
 | BPVS (ID + AB + LMP + Batches) | e2a6 | 65 | 88745 | 4072 | 1873.2 |
 | + MVVLVA | e2a6 | 65 | 25240 | 2430 | 1576.3 |
@@ -1354,7 +1410,7 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | b4f4 | 10 | 46103 | 1327 | 1470.5 |
+| Recursive (Exhaustive) | b4f4 | 10 | 46103 | 1427 | 296.4 |
 | ID (Exhaustive) | b4f4 | 10 | 49336 | 2722 | 1710.3 |
 | BPVS (ID + AB + LMP + Batches) | b4f4 | 10 | 10574 | 2141 | 1526.4 |
 | + MVVLVA | b4f4 | 10 | 11542 | 2169 | 1523.3 |
