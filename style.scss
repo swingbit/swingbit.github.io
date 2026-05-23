@@ -371,3 +371,27 @@ summary.tech-detail {
     }
   }
 }
+
+.warning-callout {
+  border-left: 4px solid #ef4444;
+  padding: 5px 0 5px 15px;
+  margin: 20px 0;
+
+  .warning-callout-title {
+    color: #ef4444;
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+  }
+
+  p {
+    margin: 0 !important;
+    font-size: 0.95em;
+    line-height: 1.6;
+    text-align: justify;
+  }
+
+  p + p {
+    margin-top: 10px !important;
+  }
+}

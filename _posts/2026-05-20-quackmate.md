@@ -438,12 +438,12 @@ SELECT score FROM minimax WHERE depth = 0;
 
 This maps the sequential, recursive tree traversal of minimax into a highly structured set of relational operations.
 
-<div style="background-color: rgba(239, 68, 68, 0.08); border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; border-radius: 4px;">
-    <strong style="color: #ef4444; display: block; margin-bottom: 8px;">⚠️ The Mixed-Depth Synchronization Caveat</strong>
-    <p style="margin: 0; font-size: 0.95em; line-height: 1.6;">
+<div class="warning-callout">
+    <strong class="warning-callout-title">⚠️ The Mixed-Depth Synchronization Caveat</strong>
+    <p>
         While this <code>WITH RECURSIVE</code> minimax model is conceptually beautiful, it hides a subtle bug when applied to real chess games. Under the rules of SQL recursive CTEs, the recursive member only has access to the rows produced in the <em>immediately preceding step</em>.
     </p>
-    <p style="margin: 10px 0 0 0; font-size: 0.95em; line-height: 1.6;">
+    <p>
         If a game tree contains mixed-depth terminal nodes (such as early checkmates or stalemates at depth 2 while other lines run to depth 4), those shallow leaves begin backpropagating immediately. They reach the upper plies faster than their deep siblings, causing parent nodes to be evaluated <strong>partially</strong> across disjoint recursion steps. To guarantee absolute search correctness across uneven subtrees, Quack-Mate avoids recursive bottom-up minimax CTEs (the top-down Expansion phase is still a recursive CTE), instead using <strong>dynamically unrolled bottom-up left join sequences</strong> or sequential depth-by-depth passes to synchronize the score propagation.
     </p>
 </div>
