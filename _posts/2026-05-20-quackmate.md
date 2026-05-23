@@ -148,21 +148,37 @@ Generating next moves isn't done piece-by-piece; it's a massive, concurrent `JOI
 
 We pre-compute these masks for every piece on every square and store them as two static lookup tables: `mobility_precomputed` (showing where a piece can legally move) and `attacks_precomputed` (a separate table necessary specifically for Pawns, which move forward but capture diagonally). We explode the current game state out into all its pieces and join them with the pre-computed mobility tables to instantly spawn rows for every possible pseudo-legal continuation for *all* pieces simultaneously.
 
-The `JOIN LATERAL` pattern allows an inner subquery to reference columns from the current outer row — here, it checks each bitboard column to identify which piece type occupies a given square. `ON true` simply means the join always applies; there is no key to match on. It is the SQL equivalent of a multi-branch `if/else` that emits a row only for the piece type that matches.
+The `JOIN LATERAL` pattern acts as our primary move generator. It iterates over a 64-row `squares` table, using a nested `CASE WHEN` to check the active turn at the top level. This allows DuckDB to instantly short-circuit and skip checking the inactive player's bitboards entirely. Active piece squares are identified and directly joined to `mobility_precomputed` on unsigned piece equality (`mp.piece = pt.piece`) to leverage static indices, while empty squares are filtered instantly at the join boundary via `pt.piece IS NOT NULL`.
 
 ```sql
 SELECT 
-    s.id AS parent_id, m.from_sq, m.target_sq AS to_sq, pt.piece
-FROM current_states s
+    s.id AS parent_id, sq.i AS from_sq, m.target_sq AS to_sq, 
+    (pt.piece * s.active_turn)::TINYINT AS piece
+FROM squares sq
+-- CROSS JOIN s -- (when bulk processing)
 
--- 1. Explode: Identify piece types on occupied squares
+-- 1. Explode: Find occupied squares and identify pieces using a nested turn check
 JOIN LATERAL (
-    SELECT 2 AS piece WHERE is_bit_set(s.wN_bb, sq.i) UNION ALL -- Knight
-    SELECT 3 AS piece WHERE is_bit_set(s.wB_bb, sq.i) UNION ALL -- Bishop
-    -- ... and so on for Rooks (4), Queens (5), Kings (6)
-) pt ON true
+    SELECT (CASE WHEN s.active_turn = 1 THEN
+        (CASE 
+            WHEN is_bit_set(s.wN_bb, sq.i) THEN 2
+            WHEN is_bit_set(s.wB_bb, sq.i) THEN 3
+            WHEN is_bit_set(s.wR_bb, sq.i) THEN 4
+            WHEN is_bit_set(s.wQ_bb, sq.i) THEN 5
+            WHEN is_bit_set(s.wK_bb, sq.i) THEN 6
+        END)
+    ELSE
+        (CASE 
+            WHEN is_bit_set(s.bN_bb, sq.i) THEN 2
+            WHEN is_bit_set(s.bB_bb, sq.i) THEN 3
+            WHEN is_bit_set(s.bR_bb, sq.i) THEN 4
+            WHEN is_bit_set(s.bQ_bb, sq.i) THEN 5
+            WHEN is_bit_set(s.bK_bb, sq.i) THEN 6
+        END)
+    END) AS piece
+) pt ON pt.piece IS NOT NULL
 
--- 2. Generate pseudo-moves for all regular identified pieces
+-- 2. Join Mobility
 JOIN mobility_precomputed m ON m.from_sq = sq.i AND m.piece = pt.piece
 WHERE (m.ray_mask & s.all_pieces_bb) = 0 
   AND NOT is_bit_set(s.my_pieces_bb, m.target_sq)
@@ -1580,7 +1596,7 @@ You might assume that the complex bitwise logic required to shift bitboards and 
 
 The real cost is the **"Relational Glue Overhead"**—the structural effort required to bridge the gap between a single bitboard (a scalar value) and a move list (a set of rows):
 
-1.  **Move Generation (The Explosion):** To generate moves, we must "explode" our compressed bitboards into discrete pieces and squares. We do this using `JOIN LATERAL` calls. In a traditional engine, this is a simple loop; in SQL, this is a heavy structural operation where DuckDB must maintain pointers and relationships between expanding sets.
+1.  **Move Generation (The Explosion):** To generate moves, we must "explode" our compressed bitboards into discrete pieces and squares. We do this using a highly tuned `JOIN LATERAL` pattern. A naive global bitmask scan would force DuckDB to evaluate the move-generation logic on all 3,668 precomputed moves per state, creating a massive CPU multiplier. Driving the search from a 64-square `squares` table instead allows us to instantly prune empty squares via `pt.piece IS NOT NULL` at the join boundary. By keeping the logical search space small, the database can perfectly leverage composite B-tree/hash indices to query *only* the active 8–12 squares. We further optimized this by nesting the `active_turn` check at the top level of our lateral subquery—this ensures that DuckDB immediately short-circuits the branching logic, completely skipping the evaluation of the inactive player's 5 bitboards and cutting active branch evaluation in half.
 2.  **Legality Checks (The Probes):** To validate a move, we must "probe" the board to see if the King is in check. We do this using `EXISTS` subqueries—essentially "sensors" that re-scan the board state. In a traditional engine, checking if three squares are attacked (e.g., for castling) is three quick memory lookups; in SQL, this originally meant three separate, expensive subqueries. We mitigated this through **Consolidated Attack Detection**, grouping these checks into a single `IN (s1, s2, s3)` filter within a single `EXISTS` block. This allowed DuckDB’s optimiser to handle the square list as a single batch, significantly reducing the "probe overhead" even if the underlying structural cost remains.
 
 Even with these optimisations, the structural work (the Joins and subqueries) still consumes **over 80% of the total execution time**. We are essentially fighting DuckDB’s own architecture: we are using a tool designed for "Big Data" relationships to perform millions of "Small Data" logic checks.
