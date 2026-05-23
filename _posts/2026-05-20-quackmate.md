@@ -442,7 +442,7 @@ This maps the sequential, recursive tree traversal of minimax into a highly stru
 > **The Mixed-Depth Synchronization Caveat:**
 > While this `WITH RECURSIVE` minimax model is conceptually beautiful, it hides a subtle bug when applied to real chess games. Under the rules of SQL recursive CTEs, the recursive member only has access to the rows produced in the *immediately preceding step*. 
 > 
-> If a game tree contains mixed-depth terminal nodes (such as early checkmates or stalemates at depth 2 while other lines run to depth 4), those shallow leaves begin backpropagating immediately. They reach the upper plies faster than their deep siblings, causing parent nodes to be evaluated **partially** across disjoint recursion steps. To guarantee absolute search correctness across uneven subtrees, Quack-Mate avoids recursive bottom-up minimax CTEs (the Expansion (top-down) phase is still a recursive CTE), instead using **dynamically unrolled bottom-up left join sequences** or sequential depth-by-depth passes to synchronize the score propagation.
+> If a game tree contains mixed-depth terminal nodes (such as early checkmates or stalemates at depth 2 while other lines run to depth 4), those shallow leaves begin backpropagating immediately. They reach the upper plies faster than their deep siblings, causing parent nodes to be evaluated **partially** across disjoint recursion steps. To guarantee absolute search correctness across uneven subtrees, Quack-Mate avoids recursive bottom-up minimax CTEs (the top-down Expansion phase is still a recursive CTE), instead using **dynamically unrolled bottom-up left join sequences** or sequential depth-by-depth passes to synchronize the score propagation.
 
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to show the corrected backpropagation CTE</summary>
@@ -453,7 +453,7 @@ To solve this, Quack-Mate dynamically unrolls the backpropagation ply-by-ply at 
 WITH RECURSIVE
     search_tree AS ( ... ), -- Top-down generation remains recursive
     
-    -- Bottom-up standard (non-recursive) CTEs
+    -- Bottom-up non-recursive CTEs
     minimax_d3 AS (
         SELECT id, parent_id, static_eval as minimax_eval 
         FROM search_tree 
