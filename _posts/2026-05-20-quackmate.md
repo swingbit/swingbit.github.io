@@ -447,7 +447,7 @@ This maps the sequential, recursive tree traversal of minimax into a highly stru
 <details markdown="1">
 <summary class="tech-detail">🛠️ Click to show the corrected backpropagation CTE</summary>
 
-To solve this, Quack-Mate dynamically unrolls the backpropagation ply-by-ply at query-generation time using JavaScript to construct a series of standard CTEs chained sequentially. This guarantees perfect score synchronization at every ply, while still producing one single query:
+To solve this, Quack-Mate dynamically unrolls the backpropagation ply-by-ply at query-generation time using JavaScript to construct a series of standard CTEs chained sequentially. This guarantees perfect score synchronization at every ply, while still producing one single query (here for max depth 3):
 
 ```sql
 WITH RECURSIVE
