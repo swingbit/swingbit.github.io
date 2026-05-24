@@ -1516,16 +1516,26 @@ Three reference points anchor this analysis: **Stockfish 18** (the unreachable c
 
 However, correctness comes at a price known as the **"algorithmic gap."** Because SQL processes moves in batches, it cannot update its pruning thresholds sequentially. Sibling moves evaluated in the same batch cannot benefit from a threshold update triggered by a previous sibling in that same batch. While the JS reference engine might navigate the start position in just 1.7K nodes, the SQL engine evaluates 20K nodes — a **10× to 15× increase** in raw node volume. This gap represents the quantified search overhead introduced by batch-based relational execution, where the engine cannot dynamically adjust pruning parameters mid-query based on individual node results.
 
+### Pruning Benefits vs. Join Overhead
+
+At Depth 4, adding advanced move-ordering and selective pruning heuristics (TT, PST, History, RFP, FFP, and LMR) reduces the node count but does not always save execution time. For example, on Board 2, stopping at `+ MVVLVA` evaluates **26.5K nodes** in **2.5 seconds**, while enabling the full stack through `+ LMR` evaluates **34.3K nodes** but takes **2.9 seconds**. 
+
+This is because every heuristic requires an explicit `LEFT JOIN` or dynamic query scan in SQL. At shallow depths (Depth $\le$ 4), the relational query planning and join execution overhead outweighs the time saved by pruning nodes.
+
+At Depth 5 and beyond, this trade-off changes. While the search tree scales exponentially ($O(b^d)$), the query join overhead only increases linearly with depth ($O(d)$). At higher depths, the node reduction from advanced pruning outweighs the fixed cost of the joins. For example, our optimized Depth 5 search on Board 2 under `+ LMR` evaluates **274K nodes** in **9.4 seconds**. Without the selective pruning heuristics (RFP, FFP, LMR), exponential node scaling would quickly overwhelm the database with millions of row expansions, making these heuristics a structural necessity for deeper searches.
+
 ### The Scaling Wall and "Chatty" Overhead
 
 This brings us to the question of hardware: can we simply throw more CPU cores at this BFS overhead to narrow the gap?
 
 #### Beyond Single-Threading: The Scaling Wall
-To analyse parallel scalability, we test the multi-threaded execution profile specifically at **Depth 5** rather than shallower depths. At shallow depths, the search tree takes under 3 seconds to process, meaning micro-benchmark noise and OS scheduling jitter distort the results into a jagged curve.
+To analyze parallel scalability, we test the multi-threaded execution profile at **Depth 5**. At shallower depths, search times are too short to obtain stable scalability data.
 
 <img src="/assets/images/quackmate_threads.png" alt="Plot showing search time scaling by thread count across different board positions" width="700" style="display: block; margin: 2rem auto;"/>
 
-Even under this denser workload, the database's parallel performance reveals the presence of a severe **Scaling Wall**, with the sweet spot landing consistently at exactly **3-4 threads**. On dense, tactical positions where the branching factor is high, DuckDB finds a tiny bit of breathing room, delivering a modest **4.5% to 8.4% speedup** at the optimal 3-4 thread region. On the complex mid-game Board 2, execution time drops from **9.0 seconds** on 1 thread to **8.4 seconds** on 3-4 threads, while the highly tactical KiwiPete (Board 3) peaks at a **8.4% speedup**, dropping from **8.1 seconds** to **7.4 seconds**. However, once we scale up to 16 threads, the database overhead of managing thread barriers and transaction synchronisation under high concurrency rapidly cancels out these parallel gains, causing search times to actively degrade back to **9.4 seconds** on Board 2 and **4.4 seconds** on Board 4. Because the search tree's logical traversal is deeply sequential under alpha-beta/PVS constraints, throwing more CPU cores at a problem that barely fills a fraction of a vector chunk only increases lock contention and coordination overhead, leaving threads queuing up at the database engine level.
+The results show a parallel scaling limit, with the optimal performance consistently landing at **3-4 threads**. On dense, tactical positions, DuckDB achieves a modest speedup: on Board 2, search time drops from **9.4 seconds** on 1 thread to **8.3 seconds** on 3 threads (**11.0% speedup**), while KiwiPete (Board 3) drops from **8.6 seconds** to **7.5 seconds** on 4 threads (**12.2% speedup**). 
+
+Scaling beyond this to 16 threads causes search times to degrade back to **9.1 seconds** on Board 2 and **4.3 seconds** on Board 4. Because alpha-beta/PVS search traversal is inherently sequential, increasing concurrency beyond a few threads primarily increases database thread coordination overhead and lock contention rather than throughput.
 
 #### Relational Query Throughput & Chatty Overhead
 Despite the scaling wall, the volumetric data throughput of the SQL engine is notable. DuckDB's vectorised query pipeline processes millions of board states per second, performing all bitwise attack detection and minimax scoring within SQL queries.
@@ -1542,7 +1552,7 @@ Pure recursive or breadth-first searches are susceptible to combinatorial memory
 #### The Transactional Undo Log and Memory Footprints
 Memory isolation profiling reveals a significant performance discrepancy: the Peak RSS memory footprint drops from ~14.8 GB under **Iterative Deepening (ID) Exhaustive** to ~1.7 GB under **BPVS + LMR** on Board 2. 
 
-This represents **transactional undo log overhead** rather than a memory leak. Because the relational engine mutates intermediate states within active transactions, DuckDB's Multi-Version Concurrency Control (MVCC) must maintain a comprehensive transactional undo log to support potential rollbacks. When pruning optimisations restrict the evaluated node count from **4.1M (ID)** to **26K (LMR)**, the transaction log footprint shrinks proportionally, reducing the Peak RSS footprint. This highlights a key architectural shift: while standard C++ engines treat selective pruning heuristics as optional performance enhancements, in a relational database they are structural necessities required to prevent transactional state tracking from swamping the system.
+This represents **transactional undo log overhead** rather than a memory leak. Because the relational engine mutates intermediate states within active transactions, DuckDB's Multi-Version Concurrency Control (MVCC) must maintain a comprehensive transactional undo log to support potential rollbacks. When pruning optimisations restrict the evaluated node count from **4.1M (ID)** to **34K (LMR)**, the transaction log footprint shrinks proportionally, reducing the Peak RSS footprint. This highlights a key architectural shift: while standard C++ engines treat selective pruning heuristics as optional performance enhancements, in a relational database they are structural necessities required to prevent transactional state tracking from swamping the system.
 
 ### Relational Friction: Move Ordering and ACID Costs
 
