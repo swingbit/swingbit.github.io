@@ -1518,11 +1518,23 @@ However, correctness comes at a price known as the **"algorithmic gap."** Becaus
 
 ### Pruning Benefits vs. Join Overhead
 
-At Depth 4, adding advanced move-ordering and selective pruning heuristics (TT, PST, History, RFP, FFP, and LMR) reduces the node count but does not always save execution time. For example, on Board 2, stopping at `+ MVVLVA` evaluates **26.5K nodes** in **2.5 seconds**, while enabling the full stack through `+ LMR` evaluates **34.3K nodes** but takes **2.9 seconds**. 
+At Depth 4, adding advanced move-ordering and selective pruning heuristics reduces the node count but does not always save execution time due to the database overhead. For example, on Board 2 at Depth 4, stopping at `+ MVVLVA` evaluates **26.5K nodes** in **2.5 seconds**, while enabling the full stack through `+ LMR` evaluates **34.3K nodes** but takes **2.9 seconds**. This is because every heuristic requires an explicit `LEFT JOIN` or dynamic query scan in SQL, and at shallow depths, query planning and join execution overhead outweighs the time saved by pruning.
 
-This is because every heuristic requires an explicit `LEFT JOIN` or dynamic query scan in SQL. At shallow depths (Depth $\le$ 4), the relational query planning and join execution overhead outweighs the time saved by pruning nodes.
+At Depth 5, however, we reach an algorithmic inflection point. But our experiments show that this payoff applies **only to pruning heuristics (RFP, FFP, LMR), not to move ordering (PST, Killers, History)**. Why?
 
-At Depth 5 and beyond, this trade-off changes. While the search tree scales exponentially ($O(b^d)$), the query join overhead only increases linearly with depth ($O(d)$). At higher depths, the node reduction from advanced pruning outweighs the fixed cost of the joins. For example, our optimized Depth 5 search on Board 2 under `+ LMR` evaluates **274K nodes** in **9.4 seconds**. Without the selective pruning heuristics (RFP, FFP, LMR), exponential node scaling would quickly overwhelm the database with millions of row expansions, making these heuristics a structural necessity for deeper searches.
+#### 1. Pruning: Exponential Savings (O(b^k))
+Pruning heuristics (like RFP or LMR) cut off entire recursive sub-trees. If a prune occurs at depth 3, we avoid searching hundreds or thousands of downstream nodes. As search depth grows, the node savings grow **exponentially** (O(b^k) where b is the branching factor and k is the remaining depth), easily dwarfing the linear cost of query planning:
+* **Complex Mid-games**: The full `+ LMR` stack beats `+ MVVLVA` both in node footprint (50% to 60% reduction) and execution time (29% to 44% saving).
+* **Endgames**: The full pipeline slashes search nodes by over 85%, cutting execution time in half.
+
+Without selective pruning, exponential node scaling would quickly swamp the database with millions of row expansions, making these heuristics a structural necessity for deeper searches.
+
+#### 2. Move Ordering: Per-Node Linear Cost (O(N))
+Unlike pruning, move-ordering heuristics (PST, Killers, History) do not prune sub-trees; they only sort candidate moves to find a beta-cutoff *slightly sooner* (e.g., evaluating move 1 instead of move 3). 
+Since basic sorting (MVVLVA captures/checks) already finds the best move first in ~90% of cases, adding granular heuristics only saves evaluating 1 or 2 extra sibling moves in rare branches. This represents a **tiny, linear saving** per node.
+However, in SQL, we must pay the full execution and join overhead for *every single evaluated node* in the tree to perform the sorting. Because both the cost and the benefit scale at the exact same linear rate (O(N)), the overhead will *always* swamp the tiny benefit, no matter how deep we search:
+* **Piece-Square Tables (PST)**: Useful for guiding ordering on quiet boards (saving over 35% of nodes), but net-neutral on dense boards due to join overhead.
+* **Killer and History Moves**: Practically ineffective. They reduce the search footprint by less than 0.01% while adding database coordination and table join costs.
 
 ### The Scaling Wall and "Chatty" Overhead
 
@@ -1533,7 +1545,7 @@ To analyze parallel scalability, we test the multi-threaded execution profile at
 
 <img src="/assets/images/quackmate_threads.png" alt="Plot showing search time scaling by thread count across different board positions" width="700" style="display: block; margin: 2rem auto;"/>
 
-The results show a parallel scaling limit, with the optimal performance consistently landing at **3-4 threads**. On dense, tactical positions, DuckDB achieves a modest speedup: on Board 2, search time drops from **9.4 seconds** on 1 thread to **8.3 seconds** on 3 threads (**11.0% speedup**), while KiwiPete (Board 3) drops from **8.6 seconds** to **7.5 seconds** on 4 threads (**12.2% speedup**). 
+The results show a parallel scaling limit, with the optimal performance consistently landing at **3-4 threads**. On dense, tactical positions, DuckDB achieves a modest speedup: on Board 2, search time drops from **9.1 seconds** on 1 thread to **8.3 seconds** on 3 threads (**8.8% speedup**), while KiwiPete (Board 3) drops from **8.6 seconds** to **7.5 seconds** on 4 threads (**12.2% speedup**). 
 
 Scaling beyond this to 16 threads causes search times to degrade back to **9.1 seconds** on Board 2 and **4.3 seconds** on Board 4. Because alpha-beta/PVS search traversal is inherently sequential, increasing concurrency beyond a few threads primarily increases database thread coordination overhead and lock contention rather than throughput.
 
