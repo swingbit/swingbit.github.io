@@ -451,7 +451,7 @@ JOIN search_tree parent ON parent.depth = MAX_DEPTH - (prev.step + 1)
 JOIN recurring.minimax child ON child.parent_id = parent.id
 ```
 
-By selecting the step number from the standard, non-recurring `minimax` table, the CTE increments exactly one ply per iteration. We then join parents whose depth matches `MAX_DEPTH - (prev.step + 1)` against the `recurring.minimax` child table containing all previously evaluated nodes. This keeps the aggregation perfectly synchronized in a single recursive query while running in a highly optimized `O(N)` linear time!
+By selecting the step number from the standard, non-recurring `minimax` table, the CTE increments exactly one ply per iteration. We then join parents whose depth matches `MAX_DEPTH - (prev.step + 1)` against the `recurring.minimax` child table containing all previously evaluated nodes. This keeps the minimax aggregation synchronized in a single recursive query.
 
 ⚠️ **Compatibility Note:** If you are working on a database engine that does not support the `recurring.` syntax, the only way to achieve correct mixed-depth score synchronization is to programmatically unroll the backpropagation sequence in your application code (e.g., in JavaScript) into separate, explicitly chained per-ply CTEs (e.g., `minimax_d3`, `minimax_d2`, etc.). This ensures that all prior plies remain accessible to parents at the cost of losing some of the recursion elegance.
 
