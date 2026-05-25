@@ -443,7 +443,7 @@ In game trees, this creates a major mixed-depth synchronization hurdle: if some 
 
 However, starting with **DuckDB >= 1.5**, [a new feature has been introduced](https://github.com/duckdb/duckdb/pull/20707) to solve this (thanks to Denis Hirn for the tip!): by referencing the recursive table as `recurring.<recursive_cte>`, DuckDB enables **all-rows recursive semantics**. This grants the recursive step access to *all rows produced across all previous steps so far*.
 
-In Quack-Mate, we leverage this in production using an elegant **depth-stepping join** to evaluate parent nodes strictly ply-by-ply:
+In Quack-Mate, we leverage this in production using a depth-stepping join to evaluate parent nodes strictly ply-by-ply:
 
 ```sql
 FROM (SELECT DISTINCT step FROM minimax) prev
