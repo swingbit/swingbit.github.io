@@ -435,13 +435,13 @@ SELECT score FROM minimax WHERE depth = 0;
 ```
 
 <details markdown="1">
-<summary class="tech-detail">💡 Have you noticed the <code>recurring.minimax</code> syntax?</summary>
+<summary class="tech-detail">💡 Have you noticed the <strong><code>recurring.minimax</code></strong> syntax?</summary>
 
 Under standard ANSI SQL recursive CTE rules, the recursive member only has access to the rows produced in the *immediately preceding step* (known as semi-naive evaluation).
 
 In game trees, this creates a major mixed-depth synchronization hurdle: if some lines terminate early (such as checkmate at depth 2 while other lines run to depth 4), standard ANSI CTEs evaluate the parent nodes partially across disjoint steps, leading to duplicated and corrupted minimax scores at the root.
 
-However, starting with **DuckDB >= 1.5**, [a new feature has been introduced](https://github.com/duckdb/duckdb/pull/20707) to solve this: by referencing the recursive table as `recurring.<recursive_cte>`, DuckDB enables **all-rows recursive semantics**. This grants the recursive step access to *all rows produced across all previous steps so far*.
+However, starting with **DuckDB >= 1.5**, [a new feature has been introduced](https://github.com/duckdb/duckdb/pull/20707) to solve this (thanks to Denis Hirn for the tip!): by referencing the recursive table as `recurring.<recursive_cte>`, DuckDB enables **all-rows recursive semantics**. This grants the recursive step access to *all rows produced across all previous steps so far*.
 
 In Quack-Mate, we leverage this in production using an elegant **depth-stepping join** to evaluate parent nodes strictly ply-by-ply:
 
