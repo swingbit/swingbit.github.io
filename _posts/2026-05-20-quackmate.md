@@ -355,9 +355,6 @@ In an imperative language, a minimax function recursively calls itself. In SQL, 
 #### The Imperative Approach
 In an imperative language, a minimax function calls itself recursively to explore the game tree. 
 
-<details markdown="1">
-<summary class="tech-detail">🛠️ Click to expand technical details</summary>
-
 Every level in this tree represents a "ply" (a single half-move by either White or Black). At each ply, the algorithm swaps sides and assumes that the player whose turn it is will play perfectly to maximise their own advantage. When the search hits the maximum depth limit, it evaluates the board and recursively bubbles those static scores back up.
 
 ```cpp
@@ -387,116 +384,77 @@ int minimax(Board node, int depth, bool is_white_turn) {
     return best_score;
 }
 ```
-</details>
 
 
 #### The Relational Approach
-This approach maps the game tree directly to a relational structure where both search expansion and bottom-up minimax aggregation are handled within a single SQL transaction.
+We can represent this exact same algorithm relationally. Instead of a sequential call stack, we execute a single, elegant SQL query that preserves the exact same two-phase structure as the C++ code: a **top-down expansion** of the search space, followed by a **bottom-up backpropagation** of the minimax scores. 
 
-<details markdown="1">
-<summary class="tech-detail">🛠️ Click to expand technical details</summary>
-
-By joining the expanding nodes top-down, and then joining the minimax evaluations bottom-up using `GROUP BY parent_id` with side-specific `MIN`/`MAX` aggregates, SQL handles the entire minimax traversal natively.
+By mapping the recursive expansion to one CTE and the bottom-up minimax aggregation to another (leveraging `GROUP BY parent_id` and side-specific `MIN`/`MAX` aggregates), the database engine handles the entire tree traversal natively in a single, set-based transaction.
 
 ```sql
 WITH RECURSIVE
+    -- Expansion CTE: Top-down
     search_tree AS (
-        SELECT id, state, 0 as depth, is_white_turn FROM root -- Root Node
-        UNION ALL        
-        -- EXPANSION (Top-down)
+        -- Expansion base case: Root Node
+        SELECT id, state, 0 as depth, is_white_turn FROM root
+
+        UNION ALL
+
+        -- Expansion step
         SELECT child.id, child.state, parent.depth + 1, child.is_white_turn
         FROM search_tree parent
         JOIN possible_moves child ON ...
         WHERE parent.depth < MAX_DEPTH
     ),
-    --- EVALUATION (Base Case)
-    leaf_nodes AS (
-        SELECT id, parent_id, static_eval(state) as score, depth
-        FROM search_tree
-        WHERE depth = MAX_DEPTH
-    ),
+
+    -- Minimax CTE: Bottom-up
     minimax AS (
-        SELECT id, parent_id, score, depth 
-        FROM leaf_nodes
+        -- Back-propagation base case:
+        -- Target depth or terminal nodes
+        SELECT id, parent_id, depth, static_eval(state) as score, 0 as step
+        FROM search_tree s
+        WHERE s.depth = MAX_DEPTH
+           OR NOT EXISTS (SELECT 1 FROM search_tree child WHERE child.parent_id = s.id)
+        
         UNION ALL
-        SELECT
+        
+        -- Back-propagation step
+        SELECT 
             parent.id, parent.parent_id, parent.depth,
-            --- The "Mini-Max" Logic
             CASE WHEN parent.is_white_turn
                  THEN MAX(child.score) -- White maximises
                  ELSE MIN(child.score) -- Black minimises
-            END as score
-        FROM search_tree parent --- BACKPROPAGATION (Bottom-Up)
-        JOIN minimax child ON parent.id = child.parent_id
-        GROUP BY parent.id, parent.parent_id, parent.depth, parent.is_white_turn
+            END as score,
+            prev.step + 1 as step
+        FROM (SELECT DISTINCT step FROM minimax) prev
+        JOIN search_tree parent ON parent.depth = MAX_DEPTH - (prev.step + 1)
+        JOIN recurring.minimax child ON child.parent_id = parent.id
+        GROUP BY parent.id, parent.parent_id, parent.depth, parent.is_white_turn, prev.step
     )
 SELECT score FROM minimax WHERE depth = 0;
 ```
-</details>
-
-
-
-This maps the sequential, recursive tree traversal of minimax into a highly structured set of relational operations.
-
-<div class="warning-callout">
-    <strong class="warning-callout-title">⚠️ The Mixed-Depth Synchronization Caveat</strong>
-    <p>
-        While this <code>WITH RECURSIVE</code> minimax model is conceptually beautiful, it hides a subtle bug when applied to real chess games. Under the rules of SQL recursive CTEs, the recursive member only has access to the rows produced in the <em>immediately preceding step</em>.
-    </p>
-    <p>
-        If a game tree contains mixed-depth terminal nodes (such as early checkmates or stalemates at depth 2 while other lines run to depth 4), those shallow leaves begin backpropagating immediately. They reach the upper plies faster than their deep siblings, causing parent nodes to be evaluated <strong>partially</strong> across disjoint recursion steps. To guarantee absolute search correctness across uneven subtrees, Quack-Mate avoids recursive bottom-up minimax CTEs (the top-down Expansion phase is still a recursive CTE), instead using <strong>dynamically unrolled bottom-up left join sequences</strong> or sequential depth-by-depth passes to synchronize the score propagation.
-    </p>
-</div>
 
 <details markdown="1">
-<summary class="tech-detail">🛠️ Click to show the corrected backpropagation CTE</summary>
+<summary class="tech-detail">💡 Have you noticed the <code>recurring.minimax</code> syntax?</summary>
 
-To solve this, Quack-Mate dynamically unrolls the backpropagation ply-by-ply at query-generation time using JavaScript to construct a series of standard CTEs chained sequentially. This guarantees perfect score synchronization at every ply, while still producing one single query (here for max depth 3):
+Under standard ANSI SQL recursive CTE rules, the recursive member only has access to the rows produced in the *immediately preceding step* (known as semi-naive evaluation).
+
+In game trees, this creates a major mixed-depth synchronization hurdle: if some lines terminate early (such as checkmate at depth 2 while other lines run to depth 4), standard ANSI CTEs evaluate the parent nodes partially across disjoint steps, leading to duplicated and corrupted minimax scores at the root.
+
+However, starting with **DuckDB >= 1.5**, [a new feature has been introduced](https://github.com/duckdb/duckdb/pull/20707) to solve this: by referencing the recursive table as `recurring.<recursive_cte>`, DuckDB enables **all-rows recursive semantics**. This grants the recursive step access to *all rows produced across all previous steps so far*.
+
+In Quack-Mate, we leverage this in production using an elegant **depth-stepping join** to evaluate parent nodes strictly ply-by-ply:
 
 ```sql
-WITH RECURSIVE
-    -- Top-down generation remains recursive
-    search_tree AS ( ... ),
-    
-    -- Bottom-up non-recursive CTEs
-    minimax_d3 AS (
-        SELECT id, parent_id, static_eval as minimax_eval 
-        FROM search_tree 
-        WHERE depth = 3
-    ),
-    minimax_d2 AS (
-        SELECT 
-            p.id, p.parent_id,
-            COALESCE(
-                CASE WHEN p.is_white_turn THEN MAX(c.minimax_eval) ELSE MIN(c.minimax_eval) END,
-                p.static_eval
-            ) as minimax_eval
-        FROM search_tree p
-        LEFT JOIN minimax_d3 c ON c.parent_id = p.id
-        WHERE p.depth = 2
-        GROUP BY p.id, p.parent_id, p.is_white_turn, p.static_eval
-    ),
-    minimax_d1 AS (
-        SELECT 
-            p.id, p.parent_id,
-            COALESCE(
-                CASE WHEN p.is_white_turn THEN MAX(c.minimax_eval) ELSE MIN(c.minimax_eval) END,
-                p.static_eval
-            ) as minimax_eval
-        FROM search_tree p
-        LEFT JOIN minimax_d2 c ON c.parent_id = p.id
-        WHERE p.depth = 1
-        GROUP BY p.id, p.parent_id, p.is_white_turn, p.static_eval
-    ),
-    minimax AS (
-        SELECT id, minimax_eval FROM minimax_d1
-        UNION ALL
-        SELECT id, minimax_eval FROM minimax_d2
-        UNION ALL
-        SELECT id, minimax_eval FROM minimax_d3
-    )
-SELECT minimax_eval FROM minimax WHERE id = 0;
+FROM (SELECT DISTINCT step FROM minimax) prev
+JOIN search_tree parent ON parent.depth = MAX_DEPTH - (prev.step + 1)
+JOIN recurring.minimax child ON child.parent_id = parent.id
 ```
+
+By selecting the step number from the standard, non-recurring `minimax` table, the CTE increments exactly one ply per iteration. We then join parents whose depth matches `MAX_DEPTH - (prev.step + 1)` against the `recurring.minimax` child table containing all previously evaluated nodes. This keeps the aggregation perfectly synchronized in a single recursive query while running in a highly optimized `O(N)` linear time!
+
+⚠️ **Compatibility Note:** If you are working on a database engine that does not support the `recurring.` syntax, the only way to achieve correct mixed-depth score synchronization is to programmatically unroll the backpropagation sequence in your application code (e.g., in JavaScript) into separate, explicitly chained per-ply CTEs (e.g., `minimax_d3`, `minimax_d2`, etc.). This ensures that all prior plies remain accessible to parents at the cost of losing some of the recursion elegance.
+
 </details>
 
 ## The Hard Limits of Elegance
@@ -1355,7 +1313,7 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | b1c3 | -10 | 206604 | 5237 | 689.5 |
+| Recursive (Exhaustive) | b1c3 | -10 | 206604 | 5163 | 692.8 |
 | ID (Exhaustive) | b1c3 | -10 | 216365 | 4715 | 1229.8 |
 | BPVS (ID + AB + LMP + Batches) | g1f3 | 0 | 57698 | 2861 | 621.3 |
 | + MVVLVA | g1f3 | 0 | 57698 | 2868 | 615.1 |
@@ -1375,7 +1333,7 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | c3d5 | -170 | 3984805 | 77354 | 9738.3 |
+| Recursive (Exhaustive) | c3d5 | -170 | 3984805 | 84378 | 9743.8 |
 | ID (Exhaustive) | c3d5 | -170 | 4078946 | 48067 | 15051.3 |
 | BPVS (ID + AB + LMP + Batches) | c3d5 | -170 | 98530 | 3878 | 1843.1 |
 | + MVVLVA | c3d5 | -170 | 26529 | 2539 | 1530.5 |
@@ -1395,7 +1353,7 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | e2a6 | 65 | 4002708 | 86423 | 10017.6 |
+| Recursive (Exhaustive) | e2a6 | 65 | 4002708 | 91310 | 10021.5 |
 | ID (Exhaustive) | e2a6 | 65 | 4100812 | 54381 | 13451.3 |
 | BPVS (ID + AB + LMP + Batches) | e2a6 | 65 | 91564 | 3785 | 1615.0 |
 | + MVVLVA | e2a6 | 65 | 25460 | 2528 | 1310.0 |
@@ -1415,7 +1373,7 @@ To anchor the SQL results in a clear frame of reference, each position includes:
 
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | b4f4 | 10 | 46103 | 1312 | 1213.3 |
+| Recursive (Exhaustive) | b4f4 | 10 | 46103 | 1448 | 1200.5 |
 | ID (Exhaustive) | b4f4 | 10 | 49336 | 2952 | 1438.6 |
 | BPVS (ID + AB + LMP + Batches) | b4f4 | 10 | 9933 | 1995 | 1261.7 |
 | + MVVLVA | b4f4 | 10 | 12359 | 2069 | 1274.8 |
