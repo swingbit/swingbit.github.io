@@ -1,7 +1,7 @@
 ---
 layout: post
-title: Quack-Mate
-subtitle: Pushing the Boundaries of Pure SQL Chess
+title: Pure SQL Chess Engine in DuckDB: Quack-Mate
+subtitle: Pushing the Boundaries of Chess in SQL
 date: 2026-05-20
 tags: chess duckdb sql
 ---
