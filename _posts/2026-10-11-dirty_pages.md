@@ -5,8 +5,14 @@ date: 2026-10-11
 tags: monetdb linux
 ---
 
+<div style="margin-bottom: 0;">
+    <img src="/assets/images/dirty_pages.jpg" alt="Dirty pages" style="margin-bottom: 0;">
+    <div style="text-align: right"><i><small>Image generated with Google Gemini</small></i></div>
+</div>
+
 For years I had a comfortable explanation for occasional slow analytical queries on large data with MonetDB:
-*the data doesn't fit in memory, so the database has to do random I/O on disk*.
+
+> *the data doesn't fit in memory, so the database has to do random I/O on disk*.
 
 It is a reasonable story, and it is often true. But a few days ago I finally looked at
 the numbers behind that story, and they did not add up.
