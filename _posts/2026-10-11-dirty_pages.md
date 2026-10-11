@@ -10,7 +10,7 @@ tags: monetdb linux
     <div style="text-align: right"><i><small>Image generated with Google Gemini</small></i></div>
 </div>
 
-For years I had a comfortable explanation for occasional slow analytical queries on large data with MonetDB:
+For years I had a comfortable explanation for the occasional slow analytical queries on large data with MonetDB:
 
 > *the data doesn't fit in memory, so the database has to do random I/O on disk*.
 
