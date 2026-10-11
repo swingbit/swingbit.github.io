@@ -20,6 +20,18 @@ the numbers behind that story, and they did not add up.
 A **read-only** query was pushing **terabytes** to disk.
 That is not random I/O. That is the Linux kernel writing back dirty pages that nobody will ever read.
 
+## How MonetDB uses memory
+
+To follow the rest of this, it helps to know one thing about MonetDB's design.
+
+MonetDB is a column-oriented database built around the idea of a **main-memory
+database**: its performance model assumes the working set lives in RAM. Rather
+than managing a buffer pool of its own, it stores each column in a file and
+`mmap`s that file into the process's address space. Reads and writes then go
+through ordinary memory accesses, and it is the **kernel's page cache** — not the
+database — that decides which pages are actually resident.
+
+
 ## A query that should be fast
 
 The setup is deliberately boring. One table, one integer column:
