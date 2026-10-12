@@ -53,9 +53,9 @@ That single number is what made me stop trusting the old explanation and start m
 
 ## The first look
 
-The obvious first stop is `top`. The query was using **very little CPU** — a
-single core busy, the rest idle. That already rules out "the algorithm got
-slower". A slow algorithm burns CPU; this one was waiting.
+The obvious first stop is `top`. The query was using **very little CPU** (about 10%). 
+That already rules out "the algorithm got slower".
+A slow algorithm burns CPU; this one was waiting.
 
 `iostat` told the rest of the story:
 
