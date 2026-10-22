@@ -2,7 +2,7 @@
 layout: post
 title: "The Update That Made Quack-Mate Slower: DuckDB 1.5 -> 2.0"
 subtitle: "When a faster database makes your application slower — and why"
-date: 2026-10-25
+date: 2026-10-22
 tags: chess duckdb sql
 ---
 
