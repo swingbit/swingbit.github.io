@@ -10,7 +10,7 @@ Almost from the moment I started building Quack-Mate, I held one comforting beli
 
 That boundary felt like a promise. If the *logic* lives in the data-access layer as standard SQL, then the application's performance is, to a large degree, the database's performance. Improve the database, and the application improves for free. You don't touch a line of chess code. You just upgrade the engine underneath it.
 
-So when DuckDB 2.0 — codenamed "Cinnamon Teal", the new LTS release — landed, the plan was genuinely as lazy as it sounds: run `npm update`, and Quack-Mate gets faster. The release notes were full of reasons to believe it. A new SQL parser. A rewritten recursive-CTE engine that DuckDB claimed was **~40× faster** on a reachability benchmark. Aggregations that spill to disk. Faster storage. In most of the ways that matter to an analytical engine, 2.0 is a straightforwardly better DuckDB.
+So when DuckDB 2.0 landed, the plan was genuinely as lazy as it sounds: run `npm update`, and Quack-Mate gets faster. The release notes were full of reasons to believe it. A new SQL parser. A rewritten recursive-CTE engine that DuckDB claimed was **~40× faster** on a reachability benchmark. Aggregations that spill to disk. Faster storage. In most of the ways that matter to an analytical engine, 2.0 is a straightforwardly better DuckDB.
 
 ## The Benchmark: `npm update`, and… slower
 
@@ -33,12 +33,12 @@ Here is KiwiPete (Board 3) — a highly tactical position, the kind the engine c
 | + LMR | e2a6 | 14,775 | **2,501** | **4,896** | 1,374 | 1,528 |
 | JS DFS Reference | e2a6 | 2,195 | 121 | 110 | 1,097 | 1,300 |
 
-Two things jump out immediately. First, the SQL configurations are almost uniformly **~1.7–2× slower** on 2.0 while choosing the *same moves and scores* as 1.5.2 — same search, twice the clock. Second, the **`JS DFS Reference` row is essentially unchanged** (121 ms → 110 ms). That row is our control: it's a pure JavaScript port that never touches DuckDB. Its stability proves the machine and the harness are fine — the regression is entirely inside DuckDB's execution.
+Two things jump out immediately. First, the SQL configurations are almost uniformly **~1.7–2× slower** on 2.0 while choosing the *same moves and scores* as 1.5.2 — same search, twice the clock. Second, the **`JS DFS Reference` row is essentially unchanged** (121 ms -> 110 ms). That row is our control: it's a pure JavaScript port that never touches DuckDB. Its stability proves the machine and the harness are fine — the regression is entirely inside DuckDB's execution.
 
 The other boards tell the same story, with two telling exceptions:
 
-- **Board 1 (Start)** and **Board 4 (Endgame)** — small trees — the single-query `Recursive (Exhaustive)` strategy is actually *faster* on 2.0 (4,649 → 3,830 ms and 1,312 → 1,165 ms).
-- **Board 2 (Complex Mid-game)** and **Board 3 (KiwiPete)** — large trees — `Recursive (Exhaustive)` is *slower* on 2.0, and its memory explodes (Board 2: 10.9 GB → **33.3 GB**; Board 3: 11.7 GB → **39.8 GB**).
+- **Board 1 (Start)** and **Board 4 (Endgame)** — small trees — the single-query `Recursive (Exhaustive)` strategy is actually *faster* on 2.0 (4,649 -> 3,830 ms and 1,312 -> 1,165 ms).
+- **Board 2 (Complex Mid-game)** and **Board 3 (KiwiPete)** — large trees — `Recursive (Exhaustive)` is *slower* on 2.0, and its memory explodes (Board 2: 10.9 GB -> **33.3 GB**; Board 3: 11.7 GB -> **39.8 GB**).
 
 So "2.0 is slower" isn't quite right. It's worse for the *heavy* cases and better for the *small* ones — a scale-dependent split that turned out to be the key to the whole mystery.
 
@@ -56,7 +56,7 @@ The surprising part is *what* dominates. `+ LMR` on KiwiPete at depth 4 issues *
 | Parser | *not reported* | 1,310 ms |
 | **Total wall** | **3,486 ms** | **5,528 ms** |
 
-Execution — the actual relational crunching of moves, checks, and scores — is essentially **unchanged** (1,366 → 1,420 ms). What changed is *compilation*: parsing, planning, and optimization. In 2.0 those three stages sum to `1,310 + 2,557 + 1,746 = 5,613 ms`, which is essentially the *entire* wall time. On 1.5.2, where the parser isn't even reported separately, planning and optimization together were only ~1.6 s.
+Execution — the actual relational crunching of moves, checks, and scores — is essentially **unchanged** (1,366 -> 1,420 ms). What changed is *compilation*: parsing, planning, and optimization. In 2.0 those three stages sum to `1,310 + 2,557 + 1,746 = 5,613 ms`, which is essentially the *entire* wall time. On 1.5.2, where the parser isn't even reported separately, planning and optimization together were only ~1.6 s.
 
 Per statement, the arithmetic is stark:
 
@@ -108,19 +108,19 @@ So preparing would buy back the parser and the per-call statement setup, and not
 
 ## Root cause #2: the rewritten recursive CTE
 
-BPVS isn't the only strategy Quack-Mate has. The original single-query `Recursive (Exhaustive)` engine runs the *entire* search as one `WITH RECURSIVE` — one query, not eight hundred. So the "chatty workload" explanation can't apply to it. Yet on the big boards it got slower (Board 2: 72.4 s → 79.5 s; Board 3: 83.4 s → 100.5 s) and used dramatically more memory (Board 3: 11.7 GB → 39.8 GB).
+BPVS isn't the only strategy Quack-Mate has. The original single-query `Recursive (Exhaustive)` engine runs the *entire* search as one `WITH RECURSIVE` — one query, not eight hundred. So the "chatty workload" explanation can't apply to it. Yet on the big boards it got slower (Board 2: 72.4 s -> 79.5 s; Board 3: 83.4 s -> 100.5 s) and used dramatically more memory (Board 3: 11.7 GB -> 39.8 GB).
 
 The reason is that DuckDB 2.0 **rewrote its recursive-CTE engine**, and the physical plan is genuinely different. Dumping the operator tree for the same recursive query on the same position:
 
 **1.5.2** — correlated references streamed through delimiter joins:
 ```
 REC_CTE
-  └─ LEFT_DELIM_JOIN → LEFT_DELIM_JOIN → … → DELIM_SCAN
+  └─ LEFT_DELIM_JOIN -> LEFT_DELIM_JOIN -> … -> DELIM_SCAN
 ```
 **2.0.0** — the same references materialized into CTEs and re-scanned:
 ```
 RECURSIVE_CTE
-  └─ CTE → CTE_SCAN → CTE → CTE_SCAN → …
+  └─ CTE -> CTE_SCAN -> CTE -> CTE_SCAN -> …
 ```
 
 The operator names swap cleanly: `REC_CTE` + `DELIM_JOIN`/`DELIM_SCAN` becomes `RECURSIVE_CTE` + `CTE`/`CTE_SCAN`. Quack-Mate's recursive term is full of correlated subqueries — the Zobrist hash, the PST sum, the ep-square and castling logic — and 2.0 materializes those into CTEs and scans them back instead of streaming them. Materialization is exactly what inflates memory.
@@ -138,7 +138,7 @@ And that balance is exactly what produces the scale split. At depth 3, 2.0 genui
 I want to be careful here, because the natural reading of all this is "DuckDB 2.0 is slower", and that's simply false. 2.0 is faster in most of the ways that matter to an analytical database:
 
 - Their reachability microbenchmark on a one-million-edge graph dropped from 4.05 s to 0.095 s — a claimed **42.6×** — for an unchanged recursive query.
-- `USING KEY` recursion and keyed pathfinding saw huge wins (an LDBC SF100 query going 19.3 s → 2.9 s *and* using less memory).
+- `USING KEY` recursion and keyed pathfinding saw huge wins (an LDBC SF100 query going 19.3 s -> 2.9 s *and* using less memory).
 - Storage, aggregation spilling, partitioning, and async I/O all improved.
 
 Quack-Mate is simply an unusual workload: it's a **"small data"** engine built on a **"big data"** database. Alpha-beta pruning means every step touches only tens of rows, so per-query *overhead* — not per-row throughput — is the entire cost structure. The original post already identified this ("relational overhead is fixed per query, regardless of how few rows are processed"). DuckDB 2.0 tuned itself for large scans and cleaner recursion; Quack-Mate's ~800-tiny-queries-per-move pattern and its volatile, correlated recursive CTE sit outside the sweet spot. When per-query overhead rises even slightly and you run a thousand of them, "slightly" becomes "twice as slow".
