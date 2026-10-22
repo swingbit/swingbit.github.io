@@ -6,6 +6,11 @@ date: 2026-10-22
 tags: chess duckdb sql
 ---
 
+<div style="margin-bottom: 0;">
+    <img src="/assets/images/quackmate-duckdb-2.jpg" alt="Dirty pages" style="margin-bottom: 0;">
+    <div style="text-align: right"><i><small>Image generated with Google Gemini</small></i></div>
+</div>
+
 Almost from the moment I started building Quack-Mate, I held one comforting belief about its design. In [the original write-up]({% post_url 2026-05-20-quackmate %}) I described it as a deliberate separation of concerns: JavaScript orchestrates the search, and DuckDB does 100% of the heavy lifting — all the move generation, validation, evaluation, and minimax back-propagation live in SQL, expressed as relational operations.
 
 That boundary felt like a promise. If the *logic* lives in the data-access layer as standard SQL, then the application's performance is, to a large degree, the database's performance. Improve the database, and the application improves for free. You don't touch a line of chess code. You just upgrade the engine underneath it.
