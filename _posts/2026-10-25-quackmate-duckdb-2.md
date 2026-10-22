@@ -54,9 +54,8 @@ The surprising part is *what* dominates. `+ LMR` on KiwiPete at depth 4 issues *
 | Optimizer | 796 ms | 1,746 ms |
 | Planner | 832 ms | 2,557 ms |
 | Parser | *not reported* | 1,310 ms |
-| **Total wall (profiled)** | **3,486 ms** | **5,528 ms** |
 
-Execution — the actual relational crunching of moves, checks, and scores — is essentially **unchanged** (1,366 -> 1,420 ms). What changed is *compilation*: parsing, planning, and optimization. In 2.0 those three stages sum to `1,310 + 2,557 + 1,746 = 5,613 ms`, which is essentially the *entire* wall time. On 1.5.2, where the parser isn't even reported separately, planning and optimization together were only ~1.6 s.
+Execution — the actual relational crunching of moves, checks, and scores — is essentially **unchanged** (1,366 -> 1,420 ms). What changed is *compilation*: parsing, planning, and optimization each grew sharply. (These are profiler stage totals; they overlap and do not partition the query's runtime — the execution figure alone sums every operator along the pipeline — so compare them stage by stage rather than summing. For reference, the profiled wall for the whole move was 3,486 ms → 5,528 ms.) On 1.5.2, where parsing isn't even reported separately, planning and optimization together were only ~1.6 s.
 
 Per statement, the arithmetic is stark:
 
