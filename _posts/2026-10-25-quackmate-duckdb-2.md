@@ -76,13 +76,9 @@ Part of it is a deliberate, headline feature. From the 2.0 announcement:
 
 > *"DuckDB has always used a parser derived from PostgreSQL's. In 2.0, our own modern, extensible PEG-based parser … becomes the default."*
 
-The new parser is genuinely better engineering — it allows extensions to hook into the grammar and produces far better error messages. But it is **more expensive per parse**. I measured it directly: for the same statement, the PEG parser costs ~0.16 ms where the old one costs ~0.028 ms — roughly 5.8× more. You can verify this yourself; the announcement even documents the escape hatch:
+The new parser is genuinely better engineering — it allows extensions to hook into the grammar and produces far better error messages. But it is **more expensive per parse**. I measured it directly: for the same statement, the PEG parser costs ~0.16 ms where the old one costs ~0.028 ms — roughly 5.8× more.
 
-```sql
-SET enable_legacy_parser = true;
-```
-
-Out of curiosity I re-ran the same profiled KiwiPete setup with the legacy parser enabled. It does what you'd hope: the parser slice drops from ~1,310 ms to ~197 ms. But the wall time only moved from ~5,528 to ~5,253 ms, because planner and optimizer stayed exactly where they were. The parser switch reclaims a slice; it doesn't touch the bulk.
+Out of curiosity I re-ran the same profiled KiwiPete setup with the legacy parser enabled (`SET enable_legacy_parser = true;`). It does what you'd hope: the parser slice drops from ~1,310 ms to ~197 ms. But the wall time only moved from ~5,528 to ~5,253 ms, because planner and optimizer stayed exactly where they were. The parser switch reclaims a slice; it doesn't touch the bulk.
 
 Which is the important nuance: **the 2.0 parser cost is not the whole story.** Even with the cheapest parser, 2.0's planner and optimizer are ~2–3× more expensive per statement than 1.5.2's. For Quack-Mate's workload that's the dominant term.
 
