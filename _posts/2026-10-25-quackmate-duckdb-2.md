@@ -38,7 +38,7 @@ Here is KiwiPete (Board 3) — a highly tactical position, the kind the engine c
 | + LMR | e2a6 | 14,775 | **2,501** | **4,896** | 1,374 | 1,528 |
 | JS DFS Reference | e2a6 | 2,195 | 121 | 110 | 1,097 | 1,300 |
 
-Two things jump out immediately. First, the SQL configurations are almost uniformly **~1.7–2× slower** on 2.0 while choosing the *same moves and scores* as 1.5.2 — same search, twice the clock. Second, the **`JS DFS Reference` row is essentially unchanged** (121 ms -> 110 ms). That row is our control: it's a pure JavaScript port that never touches DuckDB. Its stability proves the machine and the harness are fine — the regression is entirely inside DuckDB's execution.
+Two things jump out immediately. First, the SQL configurations are almost uniformly **~1.4–2× slower** on 2.0 while choosing the *same moves and scores* as 1.5.2 — same search, up to twice the clock. Second, the **`JS DFS Reference` row is essentially unchanged** (121 ms -> 110 ms). That row is our control: it's a pure JavaScript port that never touches DuckDB. Its stability proves the machine and the harness are fine — the regression is entirely inside DuckDB itself.
 
 The other boards tell the same story, with two telling exceptions:
 
@@ -51,7 +51,7 @@ So "2.0 is slower" isn't quite right. It's worse for the *heavy* cases and bette
 
 Quack-Mate already ships a profiler (the UI exposes the exact SQL and DuckDB's native operator plan), so the next step was to point it at the `+ LMR` configuration on KiwiPete at depth 4 and ask DuckDB where its time went. That required one small fix first: **DuckDB 2.0 changed the JSON profiler schema** (from a flat set of fields to nested `parser` / `planner` / `optimizer` / `operator` objects), so the existing profile parser silently reported zeros for 2.0. After normalizing both layouts, the picture was unambiguous.
 
-The surprising part is *what* dominates. `+ LMR` on KiwiPete at depth 4 issues **809 SQL statements** — of which only one is the big move-generation query and the rest are short frontier/pruning/minimax steps. Aggregate time across the whole move, 1.5.2 versus 2.0 (these are profiler-enabled runs: profiling adds roughly a millisecond per statement, so the absolute wall here sits above the unprofiled `+ LMR` benchmark row — compare the split, not the totals):
+The surprising part is *what* dominates. `+ LMR` on KiwiPete at depth 4 issues **~810 SQL statements** — of which only one is the big move-generation query and the rest are short frontier/pruning/minimax steps. Aggregate time across the whole move, 1.5.2 versus 2.0 (these are profiler-enabled runs: profiling adds roughly a millisecond per statement, so the absolute wall here sits above the unprofiled `+ LMR` benchmark row — compare the split, not the totals):
 
 | Component | 1.5.2 | 2.0.0 |
 |---|---:|---:|
@@ -71,11 +71,11 @@ Per statement, the arithmetic is stark:
 | Planner | ~1.1 ms | ~3.4 ms |
 | Parser | — | ~1.7 ms |
 
-A few milliseconds per query is nothing for one query. Multiplied by ~800 queries per move, it's the entire slowdown.
+A few milliseconds per query is nothing for one query. Multiplied across ~800 queries per move, that per-query compilation overhead is what drives the slowdown.
 
 ## Root cause #1: the "chatty" workload
 
-This is the granularity paradox from the [original post]({% post_url 2026-05-20-quackmate %}) coming back around, wearing a new hat. BPVS is deliberately *chatty*: to keep alpha-beta pruning intelligent, it fires hundreds of sequential "micro-queries" rather than one big scan. In 1.5.2 the per-query overhead — parsing, planning, optimizing — was small enough that the chess math dominated. In 2.0, that overhead grew.
+This is the granularity paradox from the [original post]({% post_url 2026-05-20-quackmate %}) coming back around, wearing a new hat. BPVS is deliberately *chatty*: to keep alpha-beta pruning intelligent, it fires hundreds of sequential "micro-queries" rather than one big scan. In 1.5.2 the per-query compilation overhead was modest — comparable to the actual chess computation itself. In 2.0, it grew.
 
 Part of it is a deliberate, headline feature. From the 2.0 announcement:
 
@@ -131,7 +131,7 @@ This is where DuckDB's own claims get interesting, because the [follow-up post o
 
 Quack-Mate's recursive term literally uses `nextval('seq_search_tree_id')`, and its heaviest subqueries are *frontier-dependent* (they read the current board), so those builds are exactly the ones the new engine declines to retain. But retention is only *one half* of the rewrite. The other half is reusable executors and precomputed pipeline schedules: the old runtime, in DuckDB's words, *"treated each epoch as a fresh execution: it recreated events and executors, reconstructed operator state and repeated scheduling work"*, while the new engine carries that machinery across epochs. That improvement applies to *any* recursion, Quack-Mate's included. So Quack-Mate isn't purely worse off — it misses the retention win, but it still gets the cheaper per-epoch execution, while paying the new plan's materialization cost. (DuckDB's own post is candid that the rewrite isn't a universal win: a 5.5% geomean across their recursive suite, with a documented ~6% regression case of its own.)
 
-And that balance is exactly what produces the scale split. At depth 3, 2.0 genuinely does *less work*: the recursive query runs in 2,984 ms versus 3,685 ms, and the old plan's single biggest cost — a `FILTER` sweep over ~54 million rows (2.1 s) — collapses to ~0.1 s, because the engine now materializes that work once as a CTE instead of re-evaluating it per frontier row. That same materialization, though, already costs more memory (1,011 MB vs 669 MB peak at depth 3). Scale up to depth 4 and the footprint reaches 32 GB; there, the memory traffic and pressure from the materialization finally outweigh the per-epoch savings, and the result flips to slower.
+And that balance is exactly what produces the scale split. At depth 3, 2.0 genuinely does *less work*: the recursive query runs in 2,984 ms versus 3,685 ms, and the old plan's single biggest cost — a `FILTER` sweep over ~54 million rows (2.1 s) — collapses to ~0.1 s, because the engine now materializes that work once as a CTE instead of re-evaluating it per frontier row. That same materialization, though, already costs more memory (1,011 MB vs 669 MB peak at depth 3). Scale up to depth 4 and the footprint reaches nearly 40 GB; there, the memory traffic and pressure from the materialization finally outweigh the per-epoch savings, and the result flips to slower.
 
 ## But DuckDB 2.0 really is faster
 
@@ -152,3 +152,16 @@ And structurally, that promise *held*. I changed zero lines of chess code. The r
 But the boundary did not make performance **opaque**. Per-query compilation cost and memory behaviour are architectural properties of the engine — they leak straight through the abstraction and into wall-clock time, and they leak hardest for *chatty* workloads. "Just update the database" is a reliable promise for throughput-bound work and a fragile one for overhead-bound work. A chess engine that fires hundreds of micro-queries per move is, unavoidably, in the second category.
 
 So for now, Quack-Mate is staying on the 1.5.x line, where the numbers are simply better. That's a slightly less satisfying outcome than "I updated a dependency and everything got faster" — but it's a far more interesting one, and it's a good reminder that the cleanest architectural boundary in the world still can't fully hide the physics underneath it.
+
+<img src="/assets/images/quackmate_screenshot.png" alt="Quack-Mate User Interface in action" style="display: block; margin: 2rem auto; max-width: 100%; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"/>
+
+<div style="text-align: center; margin: -1rem 0 2rem 0; font-family: system-ui, -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; gap: 2rem;">
+    <a href="https://swingbit.github.io/quack-mate/" target="_blank" style="font-weight: 600; text-decoration: none; color: #2563eb; display: inline-flex; align-items: center; gap: 0.5rem;">
+        <img src="/assets/images/quackmate_logo_128.png" alt="Quack-Mate Logo" style="width: 60px; height: 60px; vertical-align: middle; margin: 0; border: none; box-shadow: none; border-radius: 0; display: inline;"/>
+        Play Quack-Mate Online
+    </a>
+    <a href="https://github.com/swingbit/quack-mate" target="_blank" style="font-weight: 600; text-decoration: none; color: #2563eb; display: inline-flex; align-items: center; gap: 0.5rem;">
+        <i class="svg-icon github" style="width: 45px; height: 45px; vertical-align: middle; margin: 0; display: inline-block; background-size: contain; background-repeat: no-repeat; background-position: center;"></i>
+        GitHub Repository
+    </a>
+</div>
