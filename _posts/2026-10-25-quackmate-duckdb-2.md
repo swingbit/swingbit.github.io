@@ -50,21 +50,21 @@ The surprising part is *what* dominates. `+ LMR` on KiwiPete at depth 4 issues *
 
 | Component | 1.5.2 | 2.0.0 |
 |---|---:|---:|
-| Operator CPU (execution) | 1,366 ms | 1,420 ms |
-| Optimizer | 796 ms | 1,746 ms |
-| Planner | 832 ms | 2,557 ms |
-| Parser | *not reported* | 1,310 ms |
+| Operator CPU (execution) | ~1,500 ms | ~1,590 ms |
+| Optimizer | ~850 ms | ~1,910 ms |
+| Planner | ~880 ms | ~2,770 ms |
+| Parser | *not reported* | ~1,410 ms |
 
-Execution — the actual relational crunching of moves, checks, and scores — is essentially **unchanged** (1,366 -> 1,420 ms). What changed is *compilation*: parsing, planning, and optimization each grew sharply. (These are profiler stage totals; they overlap and do not partition the query's runtime — the execution figure alone sums every operator along the pipeline — so compare them stage by stage rather than summing. For reference, the profiled wall for the whole move was 3,486 ms → 5,528 ms.) On 1.5.2, where parsing isn't even reported separately, planning and optimization together were only ~1.6 s.
+Execution — the actual relational crunching of moves, checks, and scores — is essentially **unchanged** (~1,500 → ~1,590 ms). What changed is *compilation*: parsing, planning, and optimization each grew sharply. (These are profiler stage totals, averaged over three runs; they overlap and do not partition the query's runtime — the execution figure alone sums every operator along the pipeline — so compare them stage by stage rather than summing.) On 1.5.2, where parsing isn't even reported separately, planning and optimization together were only ~1.7 s.
 
 Per statement, the arithmetic is stark:
 
 | Per SQL statement | 1.5.2 | 2.0.0 |
 |---|---:|---:|
-| Execution | ~1.8 ms | ~1.8 ms |
-| Optimizer | ~1.0 ms | ~2.3 ms |
-| Planner | ~1.0 ms | ~3.3 ms |
-| Parser | — | ~1.6 ms |
+| Execution | ~1.8 ms | ~1.9 ms |
+| Optimizer | ~1.0 ms | ~2.4 ms |
+| Planner | ~1.1 ms | ~3.4 ms |
+| Parser | — | ~1.7 ms |
 
 A few milliseconds per query is nothing for one query. Multiplied by ~800 queries per move, it's the entire slowdown.
 
@@ -76,9 +76,9 @@ Part of it is a deliberate, headline feature. From the 2.0 announcement:
 
 > *"DuckDB has always used a parser derived from PostgreSQL's. In 2.0, our own modern, extensible PEG-based parser … becomes the default."*
 
-The new parser is genuinely better engineering — it allows extensions to hook into the grammar and produces far better error messages. But it is **more expensive per parse**. I measured it directly: for the same statement, the PEG parser costs ~0.16 ms where the old one costs ~0.028 ms — roughly 5.8× more.
+The new parser is genuinely better engineering — it allows extensions to hook into the grammar and produces far better error messages. But it is **more expensive per parse**, and Quack-Mate pays that cost ~800 times per move: in the profiler, parsing is ~1.4 s of a KiwiPete move under the PEG parser.
 
-Out of curiosity I re-ran the same profiled KiwiPete setup with the legacy parser enabled (`SET enable_legacy_parser = true;`). It does what you'd hope: the parser slice drops from ~1,310 ms to ~197 ms. But the wall time only moved from ~5,528 to ~5,253 ms, because planner and optimizer stayed exactly where they were. The parser switch reclaims a slice; it doesn't touch the bulk.
+Out of curiosity I re-ran the same profiled KiwiPete setup with the legacy parser enabled (`SET enable_legacy_parser = true;`). It does what you'd hope: parsing drops from ~1.4 s to ~0.2 s, saving roughly a second of the move's wall time. But the planner (~2.8 s) and optimizer (~1.9 s) are untouched — and those are where 2.0's extra cost actually lives.
 
 Which is the important nuance: **the 2.0 parser cost is not the whole story.** Even with the cheapest parser, 2.0's planner and optimizer are ~2–3× more expensive per statement than 1.5.2's. For Quack-Mate's workload that's the dominant term.
 
