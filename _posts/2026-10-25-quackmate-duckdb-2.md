@@ -46,7 +46,7 @@ So "2.0 is slower" isn't quite right. It's worse for the *heavy* cases and bette
 
 Quack-Mate already ships a profiler (the UI exposes the exact SQL and DuckDB's native operator plan), so the next step was to point it at the `+ LMR` configuration on KiwiPete at depth 4 and ask DuckDB where its time went. That required one small fix first: **DuckDB 2.0 changed the JSON profiler schema** (from a flat set of fields to nested `parser` / `planner` / `optimizer` / `operator` objects), so the existing profile parser silently reported zeros for 2.0. After normalizing both layouts, the picture was unambiguous.
 
-The surprising part is *what* dominates. `+ LMR` on KiwiPete at depth 4 issues **809 SQL statements** — of which only one is the big move-generation query and the rest are short frontier/pruning/minimax steps. Aggregate time across the whole move, 1.5.2 versus 2.0:
+The surprising part is *what* dominates. `+ LMR` on KiwiPete at depth 4 issues **809 SQL statements** — of which only one is the big move-generation query and the rest are short frontier/pruning/minimax steps. Aggregate time across the whole move, 1.5.2 versus 2.0 (these are profiler-enabled runs: profiling adds roughly a millisecond per statement, so the absolute wall here sits above the unprofiled `+ LMR` benchmark row — compare the split, not the totals):
 
 | Component | 1.5.2 | 2.0.0 |
 |---|---:|---:|
@@ -54,7 +54,7 @@ The surprising part is *what* dominates. `+ LMR` on KiwiPete at depth 4 issues *
 | Optimizer | 796 ms | 1,746 ms |
 | Planner | 832 ms | 2,557 ms |
 | Parser | *not reported* | 1,310 ms |
-| **Total wall** | **3,486 ms** | **5,528 ms** |
+| **Total wall (profiled)** | **3,486 ms** | **5,528 ms** |
 
 Execution — the actual relational crunching of moves, checks, and scores — is essentially **unchanged** (1,366 -> 1,420 ms). What changed is *compilation*: parsing, planning, and optimization. In 2.0 those three stages sum to `1,310 + 2,557 + 1,746 = 5,613 ms`, which is essentially the *entire* wall time. On 1.5.2, where the parser isn't even reported separately, planning and optimization together were only ~1.6 s.
 
@@ -83,7 +83,7 @@ The new parser is genuinely better engineering — it allows extensions to hook 
 SET enable_legacy_parser = true;
 ```
 
-Out of curiosity I ran the whole KiwiPete benchmark with the legacy parser enabled. It does what you'd hope: the parser slice drops from ~1,310 ms to ~197 ms. But the wall time only moved from ~5,528 to ~5,253 ms, because planner and optimizer stayed exactly where they were. The parser switch reclaims a slice; it doesn't touch the bulk.
+Out of curiosity I re-ran the same profiled KiwiPete setup with the legacy parser enabled. It does what you'd hope: the parser slice drops from ~1,310 ms to ~197 ms. But the wall time only moved from ~5,528 to ~5,253 ms, because planner and optimizer stayed exactly where they were. The parser switch reclaims a slice; it doesn't touch the bulk.
 
 Which is the important nuance: **the 2.0 parser cost is not the whole story.** Even with the cheapest parser, 2.0's planner and optimizer are ~2–3× more expensive per statement than 1.5.2's. For Quack-Mate's workload that's the dominant term.
 
