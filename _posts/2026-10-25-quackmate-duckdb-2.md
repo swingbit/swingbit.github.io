@@ -153,7 +153,7 @@ But the boundary did not make performance **opaque**. Per-query compilation cost
 
 So for now, Quack-Mate is staying on the 1.5.x line, where the numbers are simply better. That's a slightly less satisfying outcome than "I updated a dependency and everything got faster" — but it's a far more interesting one, and it's a good reminder that the cleanest architectural boundary in the world still can't fully hide the physics underneath it.
 
-<img src="/assets/images/quackmate_screenshot.png" alt="Quack-Mate User Interface in action" style="display: block; margin: 2rem auto; max-width: 100%; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"/>
+<img src="/assets/images/quackmate_screenshot-2.png" alt="Quack-Mate User Interface in action" style="display: block; margin: 2rem auto; max-width: 100%; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"/>
 
 <div style="text-align: center; margin: -1rem 0 2rem 0; font-family: system-ui, -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; gap: 2rem;">
     <a href="https://swingbit.github.io/quack-mate/" target="_blank" style="font-weight: 600; text-decoration: none; color: #2563eb; display: inline-flex; align-items: center; gap: 0.5rem;">
