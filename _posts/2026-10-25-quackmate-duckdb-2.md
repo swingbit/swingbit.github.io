@@ -130,7 +130,7 @@ And that balance is exactly what produces the scale split. At depth 3, 2.0 genui
 
 ## But DuckDB 2.0 really is faster
 
-I want to be careful here, because the natural reading of all this is "DuckDB 2.0 is slower", and that's simply false. 2.0 is faster in most of the ways that matter to an analytical database:
+I want to be careful here, because one may read all this as "DuckDB 2.0 is slower", and that's simply false. 2.0 is faster in most of the ways that matter to an analytical database:
 
 - Their reachability microbenchmark on a one-million-edge graph dropped from 4.05 s to 0.095 s — a claimed **42.6×** — for an unchanged recursive query.
 - `USING KEY` recursion and keyed pathfinding saw huge wins (an LDBC SF100 query going 19.3 s -> 2.9 s *and* using less memory).
