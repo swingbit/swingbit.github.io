@@ -291,12 +291,12 @@ relaxing these timers can weaken *its* guarantees instead.
 
 ## Results
 
-| Configuration | CPU | Disk I/O | `count(distinct i)` |
-|---|---|---|---|
-| Default writeback<br>transient on disk | ~10% | ~1.9 GB/s writes, 100% util | ~1 h 13 m |
-| Transient on tmpfs | 100% | none | ~1 m 37 s |
-| Transient in-memory<br>(`dbextra=in-memory`) | 100% | none | ~1 m 29 s |
-| Tuned writeback<br>transient on disk | 100% | negligible | ~1 m 40 s |
+| Configuration | CPU | Disk I/O | `count(distinct i)` | Risk OOM (Yes/No) |
+|---|---|---|---|---|
+| Default writeback<br>transient on disk | ~10% | ~1.9 GB/s writes, 100% util | ~1 h 13 m | No |
+| Transient on tmpfs | 100% | none | ~1 m 37 s | Yes |
+| Transient in-memory<br>(`dbextra=in-memory`) | 100% | none | ~1 m 29 s | Yes |
+| Tuned writeback<br>transient on disk | 100% | negligible | ~1 m 40 s | No |
 
 The tuned-disk configuration matches tmpfs performance while providing
 on-demand sizing, no reserved RAM, no OOM risk.
