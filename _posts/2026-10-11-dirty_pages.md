@@ -180,9 +180,45 @@ Tempting, but it has real drawbacks in a multi-tenant setup:
 
 In other words, tmpfs is a great *diagnostic* and a fine choice for some
 deployments, but it trades a dynamic, on-demand resource (disk) for a static,
-reserved one (RAM).
+reserved one (RAM). The static sizing is the first thing to go; we can recover it
+without giving up the in-RAM speed.
+
+## `dbextra=in-memory`: same speed, no fixed size
+
+MonetDB can keep the transient farm in ordinary heap memory instead of `mmap`ing
+files. This is a per-database property too:
+
+```sh
+monetdb stop mydb
+monetdb set dbextra=in-memory mydb
+monetdb start mydb
+```
+
+Instead of `mmap`ing files, the transient farm now uses **standard heap
+allocations** (anonymous memory). There is no fixed `size` to choose up front and
+no RAM reserved in advance — the heap grows and shrinks on demand. That fixes the
+static-sizing drawback tmpfs has.
+
+Measured, it came in at **1 m 29 s**, a shade under the tmpfs run's 1 m 37 s. An
+8% gap is small enough that it could be run-to-run noise, but a real effect is
+plausible: a tmpfs scratch is still a *file*, so every access pays for the
+`mmap`/shmem fault path and the pages are tracked as swappable page cache, whereas
+the heap is handed to the process by the allocator and reuses pages it has already
+faulted in. Telling the two apart would take repeated runs; for now the honest
+reading is "same ballpark", and the point that matters is that both keep the
+scratch in RAM.
+
+However, this does **not** fix the OOM risk. Anonymous memory has no backing file, so once
+the kernel hands it out there is nothing to page out and nothing to reclaim under
+pressure: the scratch can only live in RAM. When the working set grows past what
+the machine can hold, the OOM killer ends the query — or the server. So this
+option removes the sizing headache without removing the "it can OOM" one.
 
 ## The principled fix: tune the kernel, keep the disk
+
+So we have dynamic sizing, but we are still all-in on RAM. The last drawback to
+remove is the OOM risk, and that means giving the scratch a disk backing again —
+but this time on our terms, not the kernel's default policy.
 
 The insight is that the disk-backed transient farm is *already* a two-tier store:
 RAM first, disk second. The kernel's page cache is the first tier. The problem is
@@ -259,6 +295,7 @@ relaxing these timers can weaken *its* guarantees instead.
 |---|---|---|---|
 | Default writeback, transient on disk | ~10% | ~1.9 GB/s writes, 100% util | ~1 h 13 m |
 | Transient on tmpfs | 100% | none | ~1 m 37 s |
+| Transient in-memory (`dbextra=in-memory`) | 100% | none | ~1 m 29 s |
 | Tuned writeback, transient on disk | 100% | negligible | ~1 m 40 s |
 
 The tuned-disk configuration matches tmpfs performance while providing
